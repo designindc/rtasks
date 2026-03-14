@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Rob's Tasks</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy: #2E4057;
+      --blue: #4A90D9;
+      --blue-dark: #357ABD;
+      --green: #4CAF50;
+      --bg: #f0f2f7;
+      --white: #ffffff;
+      --border: #e0e4ee;
+      --text: #1a1a2e;
+      --muted: #888;
+      --radius: 14px;
+      --shadow: 0 2px 12px rgba(0,0,0,0.07);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      padding: 32px 16px 60px;
+      color: var(--text);
+    }
+
+    .container { max-width: 700px; margin: 0 auto; }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, var(--navy), var(--blue));
+      border-radius: var(--radius);
+      padding: 26px 30px;
+      color: white;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .header-left h1 { font-size: 21px; font-weight: 700; }
+    .header-left p  { font-size: 12px; opacity: 0.65; margin-top: 3px; }
+
+    .stats { display: flex; gap: 24px; }
+    .stat  { text-align: center; }
+    .stat-num   { font-size: 28px; font-weight: 800; line-height: 1; }
+    .stat-label { font-size: 10px; opacity: 0.65; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 2px; }
+
+    /* ── Add task ── */
+    .add-box {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+    }
+    .add-box label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 10px; }
+    .add-row { display: flex; gap: 8px; }
+    .add-row input {
+      flex: 1; padding: 10px 14px;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      font-size: 14px; outline: none; transition: border 0.15s;
+      font-family: inherit;
+    }
+    .add-row input:focus { border-color: var(--blue); }
+    .add-row select {
+      padding: 10px 10px;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      font-size: 13px; outline: none; background: white;
+      font-family: inherit; color: var(--text); cursor: pointer;
+    }
+    .btn-add {
+      background: var(--blue); color: white;
+      border: none; border-radius: 10px;
+      padding: 10px 18px; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: background 0.15s; white-space: nowrap;
+      font-family: inherit;
+    }
+    .btn-add:hover { background: var(--blue-dark); }
+    .btn-add:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Filters ── */
+    .filters { display: flex; gap: 7px; margin-bottom: 14px; flex-wrap: wrap; }
+    .filter-btn {
+      padding: 6px 15px; border-radius: 20px;
+      border: none; font-size: 12px; font-weight: 600;
+      cursor: pointer; background: white; color: #666;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      transition: all 0.12s; font-family: inherit;
+    }
+    .filter-btn.active { background: var(--navy); color: white; }
+    .filter-btn:hover:not(.active) { background: #e0e4f0; }
+
+    /* ── Task list ── */
+    .task-list { display: flex; flex-direction: column; gap: 7px; }
+
+    .month-label {
+      font-size: 10px; font-weight: 800; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 1px;
+      padding: 10px 2px 4px;
+    }
+
+    .task-item {
+      background: var(--white);
+      border-radius: 11px;
+      padding: 13px 16px;
+      display: flex; align-items: center; gap: 12px;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.05);
+      transition: transform 0.12s, box-shadow 0.12s, opacity 0.2s;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .task-item:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.08); }
+    .task-item.done { opacity: 0.5; }
+    .task-item.done .task-name { text-decoration: line-through; color: #aaa; }
+
+    .task-id { font-size: 10px; font-weight: 700; color: #ccc; min-width: 18px; text-align: right; }
+
+    /* Checkbox */
+    .chk-wrap { position: relative; flex-shrink: 0; }
+    .chk-wrap input { display: none; }
+    .chk-wrap label {
+      width: 20px; height: 20px;
+      border: 2px solid #d0d5e3; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .chk-wrap input:checked + label { background: var(--green); border-color: var(--green); }
+    .chk-wrap input:checked + label::after {
+      content: ''; width: 5px; height: 9px;
+      border: 2px solid white; border-top: none; border-left: none;
+      transform: rotate(45deg) translateY(-1px);
+    }
+
+    .task-name { flex: 1; font-size: 14px; font-weight: 500; }
+
+    .status-badge {
+      font-size: 11px; font-weight: 600;
+      padding: 3px 10px; border-radius: 20px;
+      cursor: pointer; white-space: nowrap; user-select: none;
+      transition: opacity 0.15s;
+    }
+    .status-badge:hover { opacity: 0.75; }
+    .badge-pending { background: #FFF3CD; color: #856404; }
+    .badge-done    { background: #D4EDDA; color: #155724; }
+    .badge-almost  { background: #D1ECF1; color: #0c5460; }
+
+    .delete-btn {
+      background: none; border: none;
+      color: #ddd; font-size: 18px; line-height: 1;
+      cursor: pointer; padding: 2px 4px; border-radius: 4px;
+      transition: color 0.12s; flex-shrink: 0;
+    }
+    .delete-btn:hover { color: #e74c3c; }
+
+    /* ── States ── */
+    .empty-state { text-align: center; padding: 48px 20px; color: #bbb; font-size: 14px; }
+    .loading-state { text-align: center; padding: 40px; color: #aaa; font-size: 14px; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: var(--navy); color: white;
+      padding: 10px 22px; border-radius: 24px;
+      font-size: 13px; font-weight: 500;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      opacity: 0; transition: opacity 0.2s; pointer-events: none;
+      z-index: 100;
+    }
+    .toast.show { opacity: 1; }
+
+    /* ── Footer ── */
+    .footer { text-align: center; margin-top: 30px; font-size: 11px; color: #ccc; }
+    .footer span { color: #bbb; }
+
+    @media (max-width: 500px) {
+      .header { padding: 20px; }
+      .stats { gap: 16px; }
+      .stat-num { font-size: 22px; }
+      .add-row { flex-wrap: wrap; }
+      .add-row select { flex: 1; }
+    }
+
+    /* ── Words of the Day ── */
+    .words-section {
+      background: white;
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow);
+    }
+    .words-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .words-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .words-day   { font-size: 12px; color: var(--muted); font-weight: 500; }
+    .words-nav   { display: flex; gap: 6px; align-items: center; }
+    .nav-btn {
+      background: var(--bg); border: none; border-radius: 8px;
+      width: 28px; height: 28px; cursor: pointer; font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.12s; color: var(--text);
+    }
+    .nav-btn:hover { background: #dde2ee; }
+    .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .word-cards  { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+    .word-card {
+      background: var(--bg); border-radius: 10px; padding: 13px 14px;
+      border-left: 3px solid var(--blue);
+      transition: transform 0.12s, box-shadow 0.12s;
+    }
+    .word-card:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,0.09); }
+    .word-card:nth-child(5n+1) { border-color: #4A90D9; }
+    .word-card:nth-child(5n+2) { border-color: #7B68EE; }
+    .word-card:nth-child(5n+3) { border-color: #48C774; }
+    .word-card:nth-child(5n+4) { border-color: #FF7043; }
+    .word-card:nth-child(5n+5) { border-color: #FFAB40; }
+    .word-main   { font-size: 16px; font-weight: 800; color: var(--navy); margin-bottom: 2px; }
+    .word-pos    { font-size: 10px; font-style: italic; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .word-def    { font-size: 12px; color: #444; line-height: 1.5; margin-bottom: 6px; }
+    .word-ex     { font-size: 11px; color: #888; line-height: 1.5; font-style: italic; }
+    .word-ex::before { content: '"'; }
+    .word-ex::after  { content: '"'; }
+    @media (max-width: 500px) { .word-cards { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="header-left">
+      <h1>📋 Rob's Tasks</h1>
+      <p id="date-label"></p>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-num" id="stat-done">–</div><div class="stat-label">Done</div></div>
+      <div class="stat"><div class="stat-num" id="stat-pending">–</div><div class="stat-label">Pending</div></div>
+      <div class="stat"><div class="stat-num" id="stat-total">–</div><div class="stat-label">Total</div></div>
+    </div>
+  </div>
+
+  <div class="add-box">
+    <label>Add New Task</label>
+    <div class="add-row">
+      <input type="text" id="new-task-input" placeholder="Type a task and press Enter…"/>
+      <select id="month-select"></select>
+      <button class="btn-add" id="add-btn" onclick="addTask()">+ Add</button>
+    </div>
+  </div>
+
+  <!-- Words of the Day -->
+  <div class="words-section">
+    <div class="words-header">
+      <div>
+        <div class="words-title">📖 Words of the Day</div>
+        <div class="words-day" id="words-day-label"></div>
+      </div>
+      <div class="words-nav">
+        <button class="nav-btn" id="nav-prev" onclick="changeDay(-1)" title="Previous day">←</button>
+        <button class="nav-btn" id="nav-next" onclick="changeDay(1)"  title="Next day">→</button>
+      </div>
+    </div>
+    <div class="word-cards" id="word-cards"></div>
+  </div>
+
+  <div class="filters">
+    <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+    <button class="filter-btn" onclick="setFilter('pending',this)">Pending</button>
+    <button class="filter-btn" onclick="setFilter('almost',this)">Almost Done</button>
+    <button class="filter-btn" onclick="setFilter('done',this)">Done</button>
+  </div>
+
+  <div class="task-list" id="task-list">
+    <div class="loading-state">Loading your tasks…</div>
+  </div>
+
+  <div class="footer">Click a status badge to cycle · <span>Powered by Supabase</span></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const SUPABASE_URL = 'https://mnzucexiralaxkkktmeo.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1uenVjZXhpcmFsYXhra2t0bWVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1MDY1MTQsImV4cCI6MjA4OTA4MjUxNH0.nizJ8dx7L5Im-X0UKoUr2V3_kGFu50JNk5gHdVzaxoM';
+
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let allTasks = [];
+  let currentFilter = 'all';
+
+  // ── Month options ──
+  const months = ['March 2026','April 2026','May 2026','June 2026','July 2026','August 2026','September 2026','October 2026','November 2026','December 2026'];
+  const sel = document.getElementById('month-select');
+  months.forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m; sel.appendChild(o); });
+
+  // ── Date label ──
+  document.getElementById('date-label').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  // ── Toast ──
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  // ── Load tasks ──
+  async function loadTasks() {
+    const { data, error } = await db.from('tasks').select('*').order('id');
+    if (error) { document.getElementById('task-list').innerHTML = '<div class="empty-state">⚠️ Could not connect. Check your Supabase setup.</div>'; return; }
+    allTasks = data;
+    render();
+  }
+
+  // ── Add task ──
+  async function addTask() {
+    const input = document.getElementById('new-task-input');
+    const name = input.value.trim();
+    if (!name) return;
+    const month = document.getElementById('month-select').value;
+    const btn = document.getElementById('add-btn');
+    btn.disabled = true;
+    const { data, error } = await db.from('tasks').insert([{ name, status: 'pending', month }]).select();
+    btn.disabled = false;
+    if (error) { toast('❌ Could not add task'); return; }
+    allTasks.push(data[0]);
+    input.value = '';
+    render();
+    toast('✅ Task added!');
+  }
+
+  // ── Cycle status ──
+  async function cycleStatus(id) {
+    const t = allTasks.find(t => t.id === id);
+    if (!t) return;
+    const cycle = { pending: 'almost', almost: 'done', done: 'pending' };
+    const newStatus = cycle[t.status] || 'pending';
+    const { error } = await db.from('tasks').update({ status: newStatus }).eq('id', id);
+    if (error) { toast('❌ Could not update'); return; }
+    t.status = newStatus;
+    render();
+  }
+
+  // ── Toggle done via checkbox ──
+  async function toggleDone(id, checked) {
+    const newStatus = checked ? 'done' : 'pending';
+    const { error } = await db.from('tasks').update({ status: newStatus }).eq('id', id);
+    if (error) { toast('❌ Could not update'); return; }
+    const t = allTasks.find(t => t.id === id);
+    if (t) t.status = newStatus;
+    render();
+  }
+
+  // ── Delete ──
+  async function deleteTask(id) {
+    if (!confirm('Delete this task?')) return;
+    const { error } = await db.from('tasks').delete().eq('id', id);
+    if (error) { toast('❌ Could not delete'); return; }
+    allTasks = allTasks.filter(t => t.id !== id);
+    render();
+    toast('🗑 Task deleted');
+  }
+
+  // ── Filter ──
+  function setFilter(f, btn) {
+    currentFilter = f;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  }
+
+  // ── Badge HTML ──
+  function badgeHTML(status) {
+    const map = {
+      pending: '<span class="status-badge badge-pending">⏳ Pending</span>',
+      almost:  '<span class="status-badge badge-almost">🟢 Almost Done</span>',
+      done:    '<span class="status-badge badge-done">✅ Done</span>',
+    };
+    return map[status] || map.pending;
+  }
+
+  // ── Render ──
+  function render() {
+    const done    = allTasks.filter(t => t.status === 'done').length;
+    const pending = allTasks.filter(t => t.status !== 'done').length;
+    document.getElementById('stat-done').textContent    = done;
+    document.getElementById('stat-pending').textContent = pending;
+    document.getElementById('stat-total').textContent   = allTasks.length;
+
+    const filtered = allTasks.filter(t => {
+      if (currentFilter === 'all')    return true;
+      if (currentFilter === 'almost') return t.status === 'almost';
+      return t.status === currentFilter;
+    });
+
+    const list = document.getElementById('task-list');
+    if (!filtered.length) { list.innerHTML = '<div class="empty-state">Nothing here 🎉</div>'; return; }
+
+    // Group by month
+    const groups = {};
+    filtered.forEach(t => { (groups[t.month] = groups[t.month] || []).push(t); });
+
+    let html = '';
+    for (const [month, items] of Object.entries(groups)) {
+      html += `<div class="month-label">${month}</div>`;
+      items.forEach((t, i) => {
+        html += `
+        <div class="task-item ${t.status === 'done' ? 'done' : ''}">
+          <span class="task-id">${i+1}</span>
+          <div class="chk-wrap">
+            <input type="checkbox" id="chk-${t.id}" ${t.status==='done'?'checked':''} onchange="toggleDone(${t.id},this.checked)"/>
+            <label for="chk-${t.id}"></label>
+          </div>
+          <span class="task-name">${t.name}</span>
+          <span onclick="cycleStatus(${t.id})">${badgeHTML(t.status)}</span>
+          <button class="delete-btn" onclick="deleteTask(${t.id})" title="Delete">×</button>
+        </div>`;
+      });
+    }
+    list.innerHTML = html;
+  }
+
+  // ── Enter key ──
+  document.getElementById('new-task-input').addEventListener('keydown', e => { if (e.key === 'Enter') addTask(); });
+
+
+  // ── Words of the Day ──
+  const WORDS = [[{"word": "Ephemeral", "pos": "adjective", "def": "Lasting for a very short time; transitory.", "ex": "The ephemeral beauty of cherry blossoms reminds us to appreciate the present moment."}, {"word": "Lucid", "pos": "adjective", "def": "Expressed clearly; easy to understand.", "ex": "Her lucid explanation of the complex theory impressed the entire audience."}, {"word": "Tenacious", "pos": "adjective", "def": "Holding firmly to a purpose or belief; persistent.", "ex": "His tenacious pursuit of excellence helped him become the top designer in the firm."}, {"word": "Serendipity", "pos": "noun", "def": "The occurrence of fortunate events by chance.", "ex": "It was pure serendipity that she met her business partner at a random coffee shop."}, {"word": "Eloquent", "pos": "adjective", "def": "Fluent and persuasive in speaking or writing.", "ex": "The CEO delivered an eloquent speech that motivated the entire company."}], [{"word": "Resilient", "pos": "adjective", "def": "Able to recover quickly from difficulties; adaptable.", "ex": "The resilient startup bounced back stronger after losing its biggest client."}, {"word": "Pragmatic", "pos": "adjective", "def": "Dealing with things sensibly and realistically.", "ex": "A pragmatic approach to the budget crisis helped the team find workable solutions."}, {"word": "Voracious", "pos": "adjective", "def": "Having an insatiable appetite for something.", "ex": "She is a voracious reader who finishes three books a week."}, {"word": "Candid", "pos": "adjective", "def": "Truthful and straightforward; frank.", "ex": "I appreciated his candid feedback on my portfolio — it helped me improve significantly."}, {"word": "Ambiguous", "pos": "adjective", "def": "Open to more than one interpretation; unclear.", "ex": "The contract clause was ambiguous, so both parties interpreted it differently."}], [{"word": "Meticulous", "pos": "adjective", "def": "Showing great attention to detail; very careful.", "ex": "The meticulous designer checked every pixel before presenting the final mockup."}, {"word": "Astute", "pos": "adjective", "def": "Having an ability to assess situations accurately; shrewd.", "ex": "Her astute business instincts helped her spot the opportunity before anyone else."}, {"word": "Benevolent", "pos": "adjective", "def": "Well-meaning and kindly; generous.", "ex": "The benevolent client offered extra budget when the project scope unexpectedly grew."}, {"word": "Prudent", "pos": "adjective", "def": "Acting with care and thought for the future; wise.", "ex": "It was prudent to get the agreement in writing before starting the project."}, {"word": "Verbose", "pos": "adjective", "def": "Using more words than needed; long-winded.", "ex": "His verbose emails could easily be cut in half without losing any meaning."}], [{"word": "Catalyst", "pos": "noun", "def": "A person or event that causes rapid change.", "ex": "The rebrand served as a catalyst for the company's dramatic growth."}, {"word": "Conundrum", "pos": "noun", "def": "A difficult problem with no easy solution.", "ex": "Balancing creativity with budget constraints is a classic conundrum in design."}, {"word": "Diligent", "pos": "adjective", "def": "Having or showing careful and persistent effort.", "ex": "Her diligent research made her proposals always well-supported."}, {"word": "Fervent", "pos": "adjective", "def": "Having or displaying passionate intensity.", "ex": "He was a fervent advocate for user-centred design in every project meeting."}, {"word": "Gregarious", "pos": "adjective", "def": "Fond of company; sociable.", "ex": "Her gregarious personality made her the natural host at every industry event."}], [{"word": "Impeccable", "pos": "adjective", "def": "In accordance with the highest standards; faultless.", "ex": "The presentation had impeccable timing, visuals, and delivery."}, {"word": "Jovial", "pos": "adjective", "def": "Cheerful and friendly; good-humoured.", "ex": "His jovial attitude kept team morale high even during stressful deadlines."}, {"word": "Magnanimous", "pos": "adjective", "def": "Generous or forgiving, especially toward a rival.", "ex": "She was magnanimous in defeat, congratulating the competing agency on their win."}, {"word": "Loquacious", "pos": "adjective", "def": "Tending to talk a great deal; talkative.", "ex": "The loquacious client spent forty minutes on introductions before reaching the brief."}, {"word": "Acumen", "pos": "noun", "def": "The ability to make good judgements and quick decisions.", "ex": "His business acumen allowed him to negotiate a far better deal than expected."}], [{"word": "Nuanced", "pos": "adjective", "def": "Characterized by subtle distinction or detail.", "ex": "Her nuanced understanding of the brand allowed her to craft the perfect message."}, {"word": "Opulent", "pos": "adjective", "def": "Ostentatiously rich and luxurious.", "ex": "The opulent hotel lobby set the tone for the luxury brand's launch event."}, {"word": "Resolute", "pos": "adjective", "def": "Admirably purposeful, determined, and unwavering.", "ex": "Despite the setbacks, she remained resolute in her commitment to the project."}, {"word": "Sagacious", "pos": "adjective", "def": "Having or showing keen mental discernment and good judgement.", "ex": "The sagacious mentor gave advice that proved right three years later."}, {"word": "Whimsical", "pos": "adjective", "def": "Playfully quaint or fanciful; appealing in an unusual way.", "ex": "The whimsical illustrations gave the children's brand a delightful personality."}], [{"word": "Brevity", "pos": "noun", "def": "Concise and exact use of words; shortness of time.", "ex": "Brevity is the soul of wit — his one-line pitch won the room instantly."}, {"word": "Cogent", "pos": "adjective", "def": "Clear, logical, and convincing.", "ex": "She made a cogent argument for increasing the design budget."}, {"word": "Deft", "pos": "adjective", "def": "Neatly skilful and quick in movement or action.", "ex": "His deft handling of the client's concerns prevented a potential crisis."}, {"word": "Heuristic", "pos": "adjective", "def": "Enabling a person to learn or discover something themselves.", "ex": "The heuristic evaluation revealed several usability issues in the app."}, {"word": "Incisive", "pos": "adjective", "def": "Intelligently analytical and clear-thinking.", "ex": "Her incisive feedback cut straight to the core issue in the design."}], [{"word": "Latent", "pos": "adjective", "def": "Existing but not yet developed or manifest; hidden.", "ex": "There was latent talent in the junior designer that finally emerged under mentorship."}, {"word": "Malleable", "pos": "adjective", "def": "Easily influenced or changed; adaptable.", "ex": "A malleable design system allows teams to evolve their brand over time."}, {"word": "Nascent", "pos": "adjective", "def": "Just coming into existence and beginning to develop.", "ex": "The nascent startup had only three employees but an extraordinary vision."}, {"word": "Penchant", "pos": "noun", "def": "A strong or habitual liking for something.", "ex": "She had a penchant for bold typography that defined her design style."}, {"word": "Salient", "pos": "adjective", "def": "Most noticeable or important; prominent.", "ex": "The most salient point in the brief was the need to appeal to younger audiences."}], [{"word": "Tacit", "pos": "adjective", "def": "Understood or implied without being stated openly.", "ex": "There was a tacit agreement among the team to avoid discussing the failed pitch."}, {"word": "Unequivocal", "pos": "adjective", "def": "Leaving no doubt; unambiguous.", "ex": "The client's feedback was unequivocal: start the entire concept from scratch."}, {"word": "Vehement", "pos": "adjective", "def": "Showing strong feeling; forceful or passionate.", "ex": "She was vehement in her defence of the original design direction."}, {"word": "Wary", "pos": "adjective", "def": "Feeling or showing caution about possible dangers.", "ex": "He was wary of signing the contract before consulting his lawyer."}, {"word": "Zenith", "pos": "noun", "def": "The highest point reached; the peak.", "ex": "Winning the global design award marked the zenith of her career."}], [{"word": "Acerbic", "pos": "adjective", "def": "Sharp and forthright; critical in tone.", "ex": "His acerbic review of the proposal stung but ultimately improved it."}, {"word": "Buoyant", "pos": "adjective", "def": "Cheerful and optimistic; light-hearted.", "ex": "The buoyant atmosphere at the launch event reflected the team's shared pride."}, {"word": "Cohesive", "pos": "adjective", "def": "United and working together effectively.", "ex": "A cohesive visual language across all platforms strengthened the brand."}, {"word": "Empirical", "pos": "adjective", "def": "Based on observation or experience rather than theory.", "ex": "The decision was backed by empirical data from six months of user testing."}, {"word": "Frugal", "pos": "adjective", "def": "Sparing or economical with money or resources.", "ex": "Being frugal in the early days allowed the company to survive its first difficult year."}], [{"word": "Holistic", "pos": "adjective", "def": "Characterised by the belief that parts are interconnected within a whole.", "ex": "A holistic approach to branding considers everything from packaging to tone of voice."}, {"word": "Inquisitive", "pos": "adjective", "def": "Curious or inquiring; eager to learn.", "ex": "Her inquisitive nature led her to ask the questions no one else thought to raise."}, {"word": "Juxtapose", "pos": "verb", "def": "To place two things close together to highlight contrast.", "ex": "The designer juxtaposed bold black text with soft pastel backgrounds for effect."}, {"word": "Languid", "pos": "adjective", "def": "Displaying a lack of energy; slow and relaxed.", "ex": "The languid pace of the afternoon meeting frustrated the eager new recruit."}, {"word": "Meander", "pos": "verb", "def": "To follow a winding course; proceed aimlessly.", "ex": "The conversation meandered for an hour before someone finally set an agenda."}], [{"word": "Pensive", "pos": "adjective", "def": "Engaged in deep thought, often with a feeling of sadness.", "ex": "She sat in a pensive silence after reading the final contract terms."}, {"word": "Rhetoric", "pos": "noun", "def": "Language designed to persuade or impress.", "ex": "The pitch was full of inspiring rhetoric but light on concrete deliverables."}, {"word": "Stoic", "pos": "adjective", "def": "Enduring pain or difficulty without complaint.", "ex": "He remained stoic through hours of difficult client negotiations."}, {"word": "Trenchant", "pos": "adjective", "def": "Vigorous and effective; sharply perceptive.", "ex": "Her trenchant analysis of the market positioned them ahead of all competitors."}, {"word": "Undulate", "pos": "verb", "def": "To move with a smooth wavelike motion.", "ex": "The undulating lines of the logo gave the brand a sense of fluid energy."}], [{"word": "Vacuous", "pos": "adjective", "def": "Having or showing a lack of thought or intelligence.", "ex": "The rebrand felt vacuous — beautiful on the surface but without any meaning."}, {"word": "Wistful", "pos": "adjective", "def": "Having a feeling of vague longing or regret.", "ex": "She felt wistful looking at the original sketches from the project's early days."}, {"word": "Zeitgeist", "pos": "noun", "def": "The defining spirit or mood of a particular period.", "ex": "The campaign brilliantly captured the zeitgeist of a generation rethinking work."}, {"word": "Beguile", "pos": "verb", "def": "To charm or enchant someone in a deceptive way.", "ex": "The slick presentation beguiled the board, but the numbers told a different story."}, {"word": "Dauntless", "pos": "adjective", "def": "Showing fearlessness and determination.", "ex": "The dauntless founder pressed on despite three consecutive funding rejections."}], [{"word": "Ebullient", "pos": "adjective", "def": "Cheerful and full of energy; exuberant.", "ex": "Her ebullient energy was infectious and lifted the whole creative team."}, {"word": "Fastidious", "pos": "adjective", "def": "Very attentive to accuracy and detail; fussy.", "ex": "The fastidious art director reviewed every frame before approving the final cut."}, {"word": "Harbinger", "pos": "noun", "def": "A person or thing that signals the approach of something.", "ex": "The surge in mobile traffic was a harbinger of the shift away from desktop."}, {"word": "Insidious", "pos": "adjective", "def": "Proceeding in a gradual, subtle way with harmful effects.", "ex": "The insidious scope creep went unnoticed until the project was weeks over budget."}, {"word": "Jaded", "pos": "adjective", "def": "Tired or lacking enthusiasm after having too much of something.", "ex": "After years of pitching, he had grown jaded with the approval process."}], [{"word": "Kindle", "pos": "verb", "def": "To arouse or inspire a feeling or emotion.", "ex": "The new brief kindled a genuine excitement within the creative team."}, {"word": "Luminous", "pos": "adjective", "def": "Full of light; bright or glowing; inspiring.", "ex": "The luminous quality of her illustrations made them leap off the page."}, {"word": "Myriad", "pos": "adjective", "def": "Countless or extremely great in number.", "ex": "There were myriad options for the homepage layout, which made deciding difficult."}, {"word": "Nonchalant", "pos": "adjective", "def": "Feeling or appearing casually calm and relaxed.", "ex": "He remained nonchalant during the tense budget review, putting everyone at ease."}, {"word": "Ostensible", "pos": "adjective", "def": "Appearing to be true but possibly not so.", "ex": "The ostensible reason for the meeting was feedback — but it was really a negotiation."}], [{"word": "Ponder", "pos": "verb", "def": "To think about something carefully over a period of time.", "ex": "She spent a week pondering the right direction before presenting three concepts."}, {"word": "Quell", "pos": "verb", "def": "To put an end to; suppress or subdue.", "ex": "His calm demeanour helped quell the tension in the room after the difficult review."}, {"word": "Riveting", "pos": "adjective", "def": "Completely fascinating; holding one's attention completely.", "ex": "The case study was so riveting that the audience forgot to check their phones."}, {"word": "Sanctimonious", "pos": "adjective", "def": "Making a show of being morally superior.", "ex": "His sanctimonious tone in meetings made him difficult to collaborate with."}, {"word": "Tenuous", "pos": "adjective", "def": "Too weak or uncertain; lacking substance.", "ex": "The connection between the proposed concept and the brand values was tenuous at best."}], [{"word": "Unravel", "pos": "verb", "def": "To investigate and solve a mystery; to fall apart.", "ex": "She slowly unravelled the reasons behind the product's poor user engagement."}, {"word": "Venerate", "pos": "verb", "def": "To regard with great respect; to revere.", "ex": "The design community venerated Dieter Rams for his minimalist principles."}, {"word": "Wane", "pos": "verb", "def": "To decrease in strength, vigour, or extent.", "ex": "Interest in the product began to wane without regular updates and new features."}, {"word": "Accolade", "pos": "noun", "def": "An award or privilege granted as recognition of merit.", "ex": "Winning the industry accolade gave the agency's profile an enormous boost."}, {"word": "Cogitate", "pos": "verb", "def": "To think deeply about something; to meditate.", "ex": "Give me a day to cogitate before I respond to that proposal."}], [{"word": "Gaunt", "pos": "adjective", "def": "Lean and haggard, especially because of suffering; bleak.", "ex": "After months of overwork, the team looked gaunt and in need of a real break."}, {"word": "Insipid", "pos": "adjective", "def": "Lacking flavour, vigour, or interest; dull.", "ex": "The first draft was insipid — it needed a strong point of view to come alive."}, {"word": "Jocular", "pos": "adjective", "def": "Fond of or characterised by joking; humorous.", "ex": "His jocular approach to briefs kept client meetings light and productive."}, {"word": "Lament", "pos": "verb", "def": "To express sorrow, regret, or disappointment about something.", "ex": "She lamented the lack of good design thinking in the industry at large."}, {"word": "Macabre", "pos": "adjective", "def": "Disturbing and horrifying because of involvement with death.", "ex": "The Halloween campaign took a macabre twist that delighted and surprised audiences."}], [{"word": "Nadir", "pos": "noun", "def": "The lowest or most unsuccessful point in a situation.", "ex": "Losing the pitch to a smaller agency was the nadir of the company's difficult year."}, {"word": "Onus", "pos": "noun", "def": "Used to refer to a burden or responsibility.", "ex": "The onus was on the designer to prove the concept was commercially viable."}, {"word": "Pedantic", "pos": "adjective", "def": "Overly concerned with minor detail or rules; unimaginative.", "ex": "His pedantic focus on comma placement distracted from the real creative work."}, {"word": "Recalcitrant", "pos": "adjective", "def": "Having an obstinately uncooperative attitude.", "ex": "The recalcitrant stakeholder blocked every decision for three straight months."}, {"word": "Sycophant", "pos": "noun", "def": "A person who acts excessively flatteringly to gain favour.", "ex": "Surrounded by sycophants, the director never heard the honest feedback he needed."}], [{"word": "Trepidation", "pos": "noun", "def": "A feeling of fear or anxiety about something.", "ex": "She felt trepidation before presenting the unconventional concept to the board."}, {"word": "Exude", "pos": "verb", "def": "To display a quality or feeling strongly and openly.", "ex": "The new brand identity exuded confidence and modernity from every touchpoint."}, {"word": "Contentious", "pos": "adjective", "def": "Causing or likely to cause argument; controversial.", "ex": "The pricing model was contentious and sparked a two-hour debate."}, {"word": "Dwindle", "pos": "verb", "def": "To diminish gradually in size, amount, or strength.", "ex": "Engagement dwindled after the team stopped posting consistently."}, {"word": "Effervescent", "pos": "adjective", "def": "Vivacious and enthusiastic; bubbly.", "ex": "Her effervescent personality made her a natural fit for client-facing roles."}], [{"word": "Fathom", "pos": "verb", "def": "To understand a difficult problem or situation.", "ex": "He couldn't fathom why the client kept rejecting perfectly sound proposals."}, {"word": "Gravitas", "pos": "noun", "def": "Seriousness and importance of manner; dignity.", "ex": "The new CEO brought gravitas to the brand that it had been sorely lacking."}, {"word": "Harrowing", "pos": "adjective", "def": "Intensely distressing; acutely painful.", "ex": "The final week before launch was harrowing but ultimately worth every moment."}, {"word": "Inept", "pos": "adjective", "def": "Having or showing no skill; clumsy.", "ex": "The inept project management led to three missed deadlines in a single month."}, {"word": "Jargon", "pos": "noun", "def": "Special words used by a particular group that are hard for others to understand.", "ex": "His pitch was full of tech jargon that confused rather than impressed the client."}], [{"word": "Mundane", "pos": "adjective", "def": "Lacking interest or excitement; dull; ordinary.", "ex": "Even mundane tasks like filing assets became satisfying with the right system."}, {"word": "Nemesis", "pos": "noun", "def": "A long-standing rival; a source of harm or ruin.", "ex": "The competing agency had been their nemesis for years, winning every major pitch."}, {"word": "Ostentatious", "pos": "adjective", "def": "Designed to impress; showy.", "ex": "The ostentatious rebrand felt more like ego than strategy."}, {"word": "Pious", "pos": "adjective", "def": "Devoutly religious; making a show of virtue; sanctimonious.", "ex": "His pious talk about user experience was never matched by actual research."}, {"word": "Quandary", "pos": "noun", "def": "A state of uncertainty over what to do in a difficult situation.", "ex": "She was in a quandary: accept the bigger budget or keep the creative freedom."}], [{"word": "Reprehensible", "pos": "adjective", "def": "Deserving censure or condemnation; very bad.", "ex": "Plagiarising another studio's work was considered reprehensible in the industry."}, {"word": "Tremulous", "pos": "adjective", "def": "Shaking or quivering; timid or nervous.", "ex": "His voice was tremulous as he delivered the results of the failed campaign."}, {"word": "Umbrage", "pos": "noun", "def": "Offence or annoyance.", "ex": "She took umbrage at the suggestion that the concept needed a complete rethink."}, {"word": "Vantage", "pos": "noun", "def": "A position giving a good view or advantage.", "ex": "Working with global clients gave her a unique vantage point on design trends."}, {"word": "Belligerent", "pos": "adjective", "def": "Hostile and aggressive.", "ex": "The belligerent client made every review meeting unnecessarily confrontational."}], [{"word": "Cacophony", "pos": "noun", "def": "A harsh, discordant mixture of sounds.", "ex": "The open-plan office was a cacophony that made deep creative work nearly impossible."}, {"word": "Debacle", "pos": "noun", "def": "A sudden, complete disaster or failure.", "ex": "The botched product launch became a public debacle the brand spent years recovering from."}, {"word": "Erratic", "pos": "adjective", "def": "Not regular or consistent; unpredictable.", "ex": "His erratic feedback made it impossible to know which direction to pursue."}, {"word": "Flamboyant", "pos": "adjective", "def": "Tending to attract attention; showy.", "ex": "Her flamboyant presentation style was polarising but always memorable."}, {"word": "Heinous", "pos": "adjective", "def": "Utterly odious or wicked.", "ex": "Delivering a pixelated logo to print was considered a heinous offence by the studio."}], [{"word": "Impasse", "pos": "noun", "def": "A situation in which no progress is possible; deadlock.", "ex": "The negotiations reached an impasse when neither side would move on the timeline."}, {"word": "Listless", "pos": "adjective", "def": "Lacking energy or enthusiasm.", "ex": "The team grew listless after months of executing other people's ideas without input."}, {"word": "Negate", "pos": "verb", "def": "To nullify; to make ineffective.", "ex": "Poor execution can negate even the most brilliant creative strategy."}, {"word": "Obliterate", "pos": "verb", "def": "To destroy utterly; wipe out.", "ex": "A single bad review can obliterate years of carefully built brand reputation."}, {"word": "Placid", "pos": "adjective", "def": "Not easily upset or excited; calm.", "ex": "Her placid response to the harsh feedback showed impressive maturity."}], [{"word": "Quirky", "pos": "adjective", "def": "Having unusual or unexpected traits; peculiar.", "ex": "The quirky brand voice set them apart from every competitor in the category."}, {"word": "Rancor", "pos": "noun", "def": "Bitterness or resentfulness, especially when long-standing.", "ex": "Years of rancor between the two founders eventually split the company apart."}, {"word": "Subvert", "pos": "verb", "def": "To undermine the power of an established system; overturn.", "ex": "The campaign subverted traditional beauty standards in a bold and powerful way."}, {"word": "Terse", "pos": "adjective", "def": "Sparing in the use of words; abrupt.", "ex": "His terse reply — just 'no' — ended the discussion before it even started."}, {"word": "Usurp", "pos": "verb", "def": "To take a position of power or importance illegally or by force.", "ex": "Social media usurped television as the dominant platform for brand storytelling."}], [{"word": "Valiant", "pos": "adjective", "def": "Possessing or showing courage or determination.", "ex": "The small agency made a valiant effort against the global network and nearly won."}, {"word": "Wield", "pos": "verb", "def": "To hold and use a weapon or tool; to have and use power.", "ex": "She wielded her creative authority with both confidence and responsibility."}, {"word": "Abscond", "pos": "verb", "def": "To leave hurriedly and secretly to avoid detection.", "ex": "The contractor absconded with the deposit before delivering a single design file."}, {"word": "Brazen", "pos": "adjective", "def": "Bold and without shame; unashamed.", "ex": "The brazen plagiarism was caught immediately and cost them the entire account."}, {"word": "Circumspect", "pos": "adjective", "def": "Wary and unwilling to take risks; cautious.", "ex": "She was circumspect about signing any deal without having legal review it first."}], [{"word": "Despondent", "pos": "adjective", "def": "In low spirits from loss of hope or courage.", "ex": "He grew despondent after the third pitch rejection in a row."}, {"word": "Elated", "pos": "adjective", "def": "Very happy and excited; ecstatic.", "ex": "The team was elated when they heard they had won the international award."}, {"word": "Fervid", "pos": "adjective", "def": "Intensely enthusiastic or passionate.", "ex": "Her fervid belief in the idea kept the project alive when others had given up."}, {"word": "Hapless", "pos": "adjective", "def": "Unfortunate; unlucky; having no luck.", "ex": "The hapless intern sent the wrong file to the client on the day of the pitch."}, {"word": "Incredulous", "pos": "adjective", "def": "Unwilling or unable to believe something.", "ex": "She was incredulous when the client asked for the entire project to be redone in a week."}], [{"word": "Levity", "pos": "noun", "def": "Humour or frivolity, especially in serious moments.", "ex": "A touch of levity in the presentation broke the tension and won the room over."}, {"word": "Morose", "pos": "adjective", "def": "Sullen and ill-tempered; gloomy.", "ex": "He became morose after receiving the critical review, taking days to bounce back."}, {"word": "Nefarious", "pos": "adjective", "def": "Wicked or criminal; villainous.", "ex": "The nefarious competitor had been stealing client leads through a fake directory site."}, {"word": "Opaque", "pos": "adjective", "def": "Not transparent; not clear or easy to understand.", "ex": "The brief was so opaque that the team produced three completely different concepts."}, {"word": "Robust", "pos": "adjective", "def": "Strong and healthy; sturdy; thoroughgoing.", "ex": "A robust design system saves teams hundreds of hours of duplicated work."}], [{"word": "Sanguine", "pos": "adjective", "def": "Optimistic, especially in a difficult situation.", "ex": "Despite the delay, the director remained sanguine about the project's outcome."}, {"word": "Taciturn", "pos": "adjective", "def": "Reserved or uncommunicative in speech; saying little.", "ex": "The taciturn developer communicated entirely in three-word Slack messages."}, {"word": "Unfettered", "pos": "adjective", "def": "Released from restraint; free.", "ex": "Given unfettered creative freedom, the team produced their best work in years."}, {"word": "Exuberant", "pos": "adjective", "def": "Filled with lively energy and excitement.", "ex": "The exuberant launch event perfectly reflected the brand's playful new identity."}, {"word": "Forthright", "pos": "adjective", "def": "Direct and outspoken; straightforward.", "ex": "Her forthright style meant you always knew exactly where you stood with her."}], [{"word": "Gracious", "pos": "adjective", "def": "Courteous, kind, and pleasant; showing elegance.", "ex": "She was gracious in her acceptance speech, thanking every member of the team."}, {"word": "Infer", "pos": "verb", "def": "To conclude from evidence or reasoning.", "ex": "From the brief, she inferred that the client wanted disruption, not refinement."}, {"word": "Juncture", "pos": "noun", "def": "A particular point in events or time; a critical moment.", "ex": "At this juncture, the team needed a bold decision to move the project forward."}, {"word": "Keen", "pos": "adjective", "def": "Having or showing eagerness or enthusiasm; sharp.", "ex": "She had a keen eye for typography that elevated every layout she touched."}, {"word": "Laconic", "pos": "adjective", "def": "Using very few words; brief and concise.", "ex": "His laconic brief — two sentences — somehow inspired the team's best campaign."}], [{"word": "Manifold", "pos": "adjective", "def": "Many and varied; having many forms.", "ex": "The manifold challenges of launching in a new market tested every part of the team."}, {"word": "Nebulous", "pos": "adjective", "def": "In the form of a cloud; hazy; not clear or definite.", "ex": "The strategy was still nebulous — all vision and no concrete action plan."}, {"word": "Oblivion", "pos": "noun", "def": "The state of being unaware or forgotten.", "ex": "Brands that ignore digital marketing risk fading into oblivion."}, {"word": "Perspicacious", "pos": "adjective", "def": "Having a ready insight; shrewd.", "ex": "Her perspicacious reading of the market led to a campaign that tripled sales."}, {"word": "Quixotic", "pos": "adjective", "def": "Extremely idealistic; unrealistic and impractical.", "ex": "His quixotic plan to redesign the entire product in a weekend amused the team."}], [{"word": "Rapport", "pos": "noun", "def": "A close and harmonious relationship with good understanding.", "ex": "The strong rapport she built with her clients meant they rarely went to competitors."}, {"word": "Seminal", "pos": "adjective", "def": "Strongly influencing later developments; highly original.", "ex": "Rand's seminal work on logo design still shapes how designers think today."}, {"word": "Temerity", "pos": "noun", "def": "Excessive confidence or boldness; audacity.", "ex": "She had the temerity to push back on the CEO's creative direction — and was proven right."}, {"word": "Uncanny", "pos": "adjective", "def": "Strange or mysterious in an unsettling way.", "ex": "He had an uncanny ability to predict which designs clients would respond to."}, {"word": "Vernacular", "pos": "noun", "def": "The language or dialect spoken by ordinary people; everyday style.", "ex": "The campaign worked because it spoke in the vernacular of its actual audience."}], [{"word": "Watershed", "pos": "noun", "def": "An event or period marking a turning point.", "ex": "The digital-first rebrand was a watershed moment in the company's history."}, {"word": "Xenial", "pos": "adjective", "def": "Of or relating to hospitality; friendly to strangers.", "ex": "Her xenial nature made visiting clients feel immediately at home in the studio."}, {"word": "Yeoman", "pos": "adjective", "def": "Done in a workmanlike manner; dependable and solid.", "ex": "He did yeoman work pulling together three months of research into one clear report."}, {"word": "Acrid", "pos": "adjective", "def": "Having an unpleasantly strong, bitter smell or taste; sharp.", "ex": "The acrid tone of his email made it clear the working relationship had broken down."}, {"word": "Bemuse", "pos": "verb", "def": "To puzzle or confuse someone.", "ex": "The abstract concept bemused the client until a clearer rationale was provided."}], [{"word": "Coalesce", "pos": "verb", "def": "To come together to form one mass or whole; merge.", "ex": "After months of fragmented feedback, a coherent direction finally coalesced."}, {"word": "Deftly", "pos": "adverb", "def": "In a neatly skilful and quick manner.", "ex": "She deftly redirected the conversation whenever it started to derail."}, {"word": "Engross", "pos": "verb", "def": "To absorb all the attention or interest of someone.", "ex": "The strategy document was so compelling it engrossed the board for an hour."}, {"word": "Facetious", "pos": "adjective", "def": "Treating serious issues with inappropriate humour.", "ex": "His facetious comments during the crisis meeting were poorly timed and noted."}, {"word": "Galvanise", "pos": "verb", "def": "To shock or excite someone into taking action.", "ex": "The disastrous competitor launch galvanised the team to accelerate their own release."}], [{"word": "Hapless", "pos": "adjective", "def": "Unlucky; unfortunate; having no luck.", "ex": "The hapless account manager double-booked two major client presentations on the same day."}, {"word": "Imbue", "pos": "verb", "def": "To inspire or permeate with a feeling or quality.", "ex": "The brief asked them to imbue the brand with a sense of quiet confidence."}, {"word": "Judicious", "pos": "adjective", "def": "Having good judgement; wise and careful.", "ex": "A judicious use of white space made the layout feel authoritative and clean."}, {"word": "Kindle", "pos": "verb", "def": "To arouse or inspire an emotion or feeling.", "ex": "The new creative director kindled real enthusiasm in a team that had felt stale."}, {"word": "Liminal", "pos": "adjective", "def": "Relating to a transitional stage; on the threshold.", "ex": "The brand was in a liminal phase — not quite what it was, not yet what it wanted to be."}], [{"word": "Mirth", "pos": "noun", "def": "Amusement expressed in laughter; gaiety.", "ex": "The unexpected blooper in the video caused great mirth at the client review."}, {"word": "Nettle", "pos": "verb", "def": "To irritate or provoke someone.", "ex": "The vague brief nettled her — she needed facts, not feelings, to start a project."}, {"word": "Obdurate", "pos": "adjective", "def": "Stubbornly refusing to change one's opinion; unyielding.", "ex": "He was obdurate about the logo colour, despite all evidence pointing another way."}, {"word": "Propitious", "pos": "adjective", "def": "Giving or indicating a good chance of success; favourable.", "ex": "The timing felt propitious — the market was ready and the team was at full strength."}, {"word": "Querulous", "pos": "adjective", "def": "Complaining in a petulant or whining manner.", "ex": "A querulous client who questions every decision will drain the team's energy fast."}], [{"word": "Remiss", "pos": "adjective", "def": "Lacking care or attention to duty; negligent.", "ex": "It would be remiss not to document the process before the team moved on."}, {"word": "Supple", "pos": "adjective", "def": "Flexible; able to adapt to new circumstances with ease.", "ex": "A supple brand system can stretch across every new channel without breaking."}, {"word": "Trite", "pos": "adjective", "def": "Overused and lacking original thought; clichéd.", "ex": "The concept felt trite — the team had seen it in a hundred campaigns before."}, {"word": "Unwieldy", "pos": "adjective", "def": "Difficult to manage because of size, shape, or complexity.", "ex": "The unwieldy approval process involved eleven people and slowed everything down."}, {"word": "Vitriolic", "pos": "adjective", "def": "Full of bitter criticism or malice.", "ex": "The vitriolic review stung the team but contained one genuinely useful insight."}], [{"word": "Waver", "pos": "verb", "def": "To become unsteady; to be undecided between two options.", "ex": "She never wavered in her creative vision, even under intense commercial pressure."}, {"word": "Exalt", "pos": "verb", "def": "To hold someone in very high regard; praise highly.", "ex": "The industry exalted her as the defining voice of a new generation of designers."}, {"word": "Yoke", "pos": "verb", "def": "To join or link together; to burden.", "ex": "The team felt yoked by outdated brand guidelines that stifled every new idea."}, {"word": "Abate", "pos": "verb", "def": "To become less intense or widespread.", "ex": "The initial controversy abated once the brand released a thoughtful response."}, {"word": "Beckon", "pos": "verb", "def": "To make a gesture to encourage someone to approach.", "ex": "A clear call to action beckons the user forward through every step of the journey."}], [{"word": "Clemency", "pos": "noun", "def": "Mercy and leniency shown toward offenders or enemies.", "ex": "The client showed clemency after the missed deadline, extending the timeline without penalty."}, {"word": "Diffident", "pos": "adjective", "def": "Modest or shy due to a lack of self-confidence.", "ex": "Despite his talent, he was too diffident to advocate for his own ideas in meetings."}, {"word": "Effulgent", "pos": "adjective", "def": "Radiant; shining brightly.", "ex": "The effulgent photography gave the campaign an aspirational, sun-drenched quality."}, {"word": "Fallacy", "pos": "noun", "def": "A mistaken belief, especially one based on unsound argument.", "ex": "The fallacy that good design is expensive has been disproven by countless small brands."}, {"word": "Guile", "pos": "noun", "def": "Clever but dishonest behaviour; cunning.", "ex": "He navigated the politics of the large corporation with remarkable guile."}], [{"word": "Hiatus", "pos": "noun", "def": "A pause or gap in a sequence, activity, or process.", "ex": "After a six-month hiatus, the brand returned with a completely transformed identity."}, {"word": "Imminent", "pos": "adjective", "def": "About to happen very soon.", "ex": "With the deadline imminent, the team worked through the night to finalise the deck."}, {"word": "Jostle", "pos": "verb", "def": "To push or bump against others in a crowd; to compete.", "ex": "Dozens of agencies jostle for position at the top of every major pitch list."}, {"word": "Knack", "pos": "noun", "def": "An acquired skill; a clever way of doing something.", "ex": "She had an extraordinary knack for translating complex ideas into simple visuals."}, {"word": "Languish", "pos": "verb", "def": "To lose strength; to fail to make progress.", "ex": "The project languished for months in a committee before anyone made a decision."}], [{"word": "Pugnacious", "pos": "adjective", "def": "Eager or quick to argue, quarrel, or fight.", "ex": "His pugnacious style in negotiations often damaged relationships that took years to repair."}, {"word": "Rapture", "pos": "noun", "def": "A feeling of intense pleasure or joy.", "ex": "She felt pure rapture seeing the final brand identity on a billboard for the first time."}, {"word": "Scrupulous", "pos": "adjective", "def": "Diligent, thorough, and extremely attentive to detail.", "ex": "Her scrupulous approach to research meant every creative choice was well-founded."}, {"word": "Tumultuous", "pos": "adjective", "def": "Making an uproar; loud; full of confusion and disorder.", "ex": "It had been a tumultuous year for the company, but they emerged stronger for it."}, {"word": "Unwavering", "pos": "adjective", "def": "Steady or resolute; not wavering.", "ex": "Her unwavering commitment to the brief kept the team aligned through every revision."}], [{"word": "Veracious", "pos": "adjective", "def": "Speaking or representing the truth; truthful.", "ex": "A veracious brand is one whose identity reflects who they genuinely are."}, {"word": "Wan", "pos": "adjective", "def": "Pale and giving the impression of illness or exhaustion.", "ex": "After the all-nighter before the pitch, the whole team looked wan but victorious."}, {"word": "Anomaly", "pos": "noun", "def": "Something that deviates from the standard; an irregularity.", "ex": "The spike in engagement was an anomaly — it turned out to be driven by one viral post."}, {"word": "Berate", "pos": "verb", "def": "To scold or criticise angrily and at length.", "ex": "He berated the agency for missing the brief, then softened when he saw the work."}, {"word": "Coerce", "pos": "verb", "def": "To persuade someone using force or threats.", "ex": "No one should ever be coerced into approving work they genuinely believe is wrong."}], [{"word": "Desolate", "pos": "adjective", "def": "Empty of people; feeling abandoned or miserable.", "ex": "The once-bustling office felt desolate during the post-pandemic remote transition."}, {"word": "Empathy", "pos": "noun", "def": "The ability to understand and share the feelings of others.", "ex": "Empathy is the foundation of great design — you must feel what users feel."}, {"word": "Fallible", "pos": "adjective", "def": "Capable of making mistakes; not always reliable.", "ex": "Even the best designers are fallible — feedback and testing exist for good reason."}, {"word": "Garrulous", "pos": "adjective", "def": "Excessively talkative, especially on trivial matters.", "ex": "The garrulous stakeholder turned every five-minute update into a ninety-minute session."}, {"word": "Harbinger", "pos": "noun", "def": "A forerunner or omen of something to come.", "ex": "Falling engagement on email was a harbinger of deeper disconnection with the audience."}], [{"word": "Idiosyncrasy", "pos": "noun", "def": "A distinctive or peculiar feature or habit.", "ex": "The brand's idiosyncrasies were precisely what made it so recognisable and loved."}, {"word": "Judicious", "pos": "adjective", "def": "Showing good judgement; sensible.", "ex": "A judicious edit of the copy reduced the word count and doubled its impact."}, {"word": "Kinetic", "pos": "adjective", "def": "Relating to or resulting from motion; lively.", "ex": "The kinetic energy of the animation brought the brand's personality to life instantly."}, {"word": "Largesse", "pos": "noun", "def": "Generosity in bestowing money or gifts; generosity of spirit.", "ex": "The client's largesse — offering a bonus upon delivery — was unexpected and appreciated."}, {"word": "Mitigate", "pos": "verb", "def": "To make less severe or serious; to lessen.", "ex": "Clear communication early in the process can mitigate most project conflicts."}], [{"word": "Nostalgic", "pos": "adjective", "def": "Experiencing a sentimental longing for the past.", "ex": "The retro-inspired packaging made consumers nostalgic for simpler times."}, {"word": "Oblique", "pos": "adjective", "def": "Not explicit; indirect; at an angle.", "ex": "His oblique references to the competitor in the pitch were noted but not addressed."}, {"word": "Palpable", "pos": "adjective", "def": "So intense as to seem almost tangible; easily felt.", "ex": "The excitement in the room was palpable the moment the concept was unveiled."}, {"word": "Quintessential", "pos": "adjective", "def": "Representing the most perfect example of something.", "ex": "The poster was the quintessential expression of the brand's bold new direction."}, {"word": "Rarefied", "pos": "adjective", "def": "Belonging to or typical of a small and exclusive group.", "ex": "The agency operated in the rarefied world of ultra-luxury brand strategy."}], [{"word": "Steadfast", "pos": "adjective", "def": "Resolutely or dutifully firm and unwavering.", "ex": "Her steadfast refusal to compromise on quality built lasting trust with every client."}, {"word": "Transgress", "pos": "verb", "def": "To go beyond the limits set by a rule or convention.", "ex": "Great brands know which conventions to keep and which ones to boldly transgress."}, {"word": "Ubiquitous", "pos": "adjective", "def": "Present, appearing, or found everywhere.", "ex": "The logo became ubiquitous — it appeared on everything from billboards to coffee cups."}, {"word": "Verbose", "pos": "adjective", "def": "Using more words than necessary; long-winded.", "ex": "Verbose copy buries the message — good editing is itself an act of design."}, {"word": "Wane", "pos": "verb", "def": "To decrease in power, size, or importance.", "ex": "The brand's relevance waned when it stopped evolving with its audience."}], [{"word": "Exemplary", "pos": "adjective", "def": "Serving as a desirable model; representing the best.", "ex": "The studio's exemplary process documentation became a model for the whole industry."}, {"word": "Yearn", "pos": "verb", "def": "To have a strong feeling of longing for something.", "ex": "After years of client work, she yearned to create something entirely her own."}, {"word": "Zealot", "pos": "noun", "def": "A fanatical and uncompromising person; someone intensely devoted.", "ex": "He was a zealot for accessibility — no project left the studio without meeting WCAG standards."}, {"word": "Abhor", "pos": "verb", "def": "To regard with disgust and hatred.", "ex": "She abhorred generic stock photography and banned it from every brief she touched."}, {"word": "Benign", "pos": "adjective", "def": "Gentle and kindly; not harmful; mild.", "ex": "The benign feedback session gradually revealed a serious misalignment in the project."}], [{"word": "Covet", "pos": "verb", "def": "To yearn to possess something belonging to someone else.", "ex": "Every junior designer in the city coveted a spot at the agency."}, {"word": "Deride", "pos": "verb", "def": "To express contempt for; to mock.", "ex": "Critics derided the campaign at launch, then quietly praised it a year later."}, {"word": "Embellish", "pos": "verb", "def": "To make more attractive; to add detail to.", "ex": "She embellished the proposal with hand-drawn sketches that delighted the client."}, {"word": "Fervor", "pos": "noun", "def": "Intense and passionate feeling; great enthusiasm.", "ex": "She spoke about the brand strategy with a fervor that convinced even the sceptics."}, {"word": "Grapple", "pos": "verb", "def": "To struggle with a difficulty; to wrestle with.", "ex": "The team grappled with how to communicate complex values in a single visual."}], [{"word": "Haughty", "pos": "adjective", "def": "Arrogantly superior and disdainful of others.", "ex": "His haughty dismissal of the junior's idea turned out to be one of the team's biggest mistakes."}, {"word": "Indignant", "pos": "adjective", "def": "Feeling or showing anger about unjust treatment.", "ex": "She was indignant when a competitor used a near-identical concept from her rejected pitch."}, {"word": "Jovial", "pos": "adjective", "def": "Cheerful and friendly; in good humour.", "ex": "His jovial energy after the long pitch session reminded everyone why they loved the work."}, {"word": "Knack", "pos": "noun", "def": "A special skill or talent for something.", "ex": "He had a knack for finding exactly the right typeface for every brand personality."}, {"word": "Languish", "pos": "verb", "def": "To fail to make progress; to grow weak.", "ex": "Without consistent leadership, the project began to languish in review for months."}], [{"word": "Magnify", "pos": "verb", "def": "To make something appear larger; to increase the significance of.", "ex": "Good photography magnifies a product's appeal beyond what words alone could achieve."}, {"word": "Negligible", "pos": "adjective", "def": "So small as to be not worth considering; insignificant.", "ex": "The cost of getting the colour right was negligible compared to the value it added."}, {"word": "Ominous", "pos": "adjective", "def": "Giving the impression that something bad is about to happen.", "ex": "The ominous silence from the client after the presentation was broken by a single question."}, {"word": "Pervasive", "pos": "adjective", "def": "Spreading widely throughout an area or group.", "ex": "The pervasive influence of minimalism reshaped every category of design over a decade."}, {"word": "Qualm", "pos": "noun", "def": "An uneasy feeling of doubt, worry, or fear.", "ex": "She had qualms about the direction but decided to trust the data and move forward."}], [{"word": "Raucous", "pos": "adjective", "def": "Making or constituting a disturbingly harsh sound; boisterous.", "ex": "The raucous brainstorm session produced three ideas that made it into the final pitch."}, {"word": "Sinuous", "pos": "adjective", "def": "Having many curves and turns; gracefully slender.", "ex": "The sinuous lines of the logo gave the luxury brand a fluid, feminine quality."}, {"word": "Tangential", "pos": "adjective", "def": "Diverging from the main topic; only partly relevant.", "ex": "The forty-minute discussion on fonts was entirely tangential to the brief at hand."}, {"word": "Usurp", "pos": "verb", "def": "To take a position of power without authority.", "ex": "Digital channels did not just supplement print — they completely usurped it."}, {"word": "Vivid", "pos": "adjective", "def": "Producing strong, clear images in the mind; intensely bright.", "ex": "The vivid colour palette gave the campaign the stopping power it needed online."}], [{"word": "Whimsy", "pos": "noun", "def": "Playfully quaint or fanciful behaviour or humour.", "ex": "A touch of whimsy in the error page turned a frustrating moment into a smile."}, {"word": "Exasperate", "pos": "verb", "def": "To intensely irritate or frustrate someone.", "ex": "The constant change requests exasperated the team, but they pushed through with grace."}, {"word": "Yeoman", "pos": "noun", "def": "A person who works reliably and with great effort.", "ex": "The account manager did yeoman work keeping three major projects on track simultaneously."}, {"word": "Zeal", "pos": "noun", "def": "Great energy or enthusiasm in pursuit of a cause.", "ex": "She approached every brief with such zeal it was impossible not to be swept along."}, {"word": "Abate", "pos": "verb", "def": "To become less intense or widespread.", "ex": "Once the rebrand launched successfully, the internal scepticism quickly abated."}], [{"word": "Blithe", "pos": "adjective", "def": "Showing a casual and cheerful indifference.", "ex": "His blithe dismissal of production constraints frustrated the studio team greatly."}, {"word": "Caustic", "pos": "adjective", "def": "Sarcastic in a scathing and bitter way.", "ex": "Her caustic wit could sting in the moment but usually masked a sharp strategic mind."}, {"word": "Diatribe", "pos": "noun", "def": "A forceful and bitter verbal attack against someone.", "ex": "His post-pitch diatribe against the brief overshadowed the genuinely strong work."}, {"word": "Enigma", "pos": "noun", "def": "A person or thing that is mysterious and difficult to understand.", "ex": "The brand had become an enigma — beautiful but impossible to clearly define."}, {"word": "Furtive", "pos": "adjective", "def": "Attempting to avoid notice; secretive.", "ex": "She shot a furtive glance at the competitor's booth before returning to her own."}], [{"word": "Germane", "pos": "adjective", "def": "Relevant to a subject under consideration; appropriate.", "ex": "Only include research that is germane to the brief — leave everything else out."}, {"word": "Hubris", "pos": "noun", "def": "Excessive pride or self-confidence; arrogance.", "ex": "The agency's hubris led them to skip the discovery phase — a decision they regretted."}, {"word": "Idyllic", "pos": "adjective", "def": "Extremely happy, peaceful, or picturesque.", "ex": "The campaign's idyllic imagery transported the viewer to an aspirational way of living."}, {"word": "Luminescent", "pos": "adjective", "def": "Emitting light not caused by heat; glowing.", "ex": "The luminescent quality of the screen-printed ink made the packaging stand out in the dark."}, {"word": "Mutable", "pos": "adjective", "def": "Liable or subject to change; changeable.", "ex": "A great brand identity is fixed in principle but mutable in its execution."}], [{"word": "Nuance", "pos": "noun", "def": "A subtle difference in meaning, expression, or sound.", "ex": "The nuance between 'luxury' and 'premium' drove weeks of strategic debate."}, {"word": "Obfuscate", "pos": "verb", "def": "To make unclear or confusing; to bewilder.", "ex": "Jargon and buzzwords only obfuscate ideas that should be expressed simply."}, {"word": "Placate", "pos": "verb", "def": "To make someone less angry or upset; to appease.", "ex": "She sent a thoughtful handwritten note to placate the frustrated client."}, {"word": "Quizzical", "pos": "adjective", "def": "Indicating mild or amused puzzlement.", "ex": "The client gave a quizzical look at the unexpected direction, then slowly smiled."}, {"word": "Reiterate", "pos": "verb", "def": "To say or do something again or repeatedly for emphasis.", "ex": "She reiterated the core idea at the end of every section so nothing could be missed."}], [{"word": "Stalwart", "pos": "adjective", "def": "Loyal, reliable, and hardworking.", "ex": "He was a stalwart of the studio — always the last to leave and first to help."}, {"word": "Tactile", "pos": "adjective", "def": "Of or connected with the sense of touch; tangible.", "ex": "The tactile quality of the embossed cover made the brand book a pleasure to hold."}, {"word": "Unassuming", "pos": "adjective", "def": "Not pretentious or arrogant; modest.", "ex": "Her unassuming manner in meetings concealed an extraordinary creative intelligence."}, {"word": "Voluble", "pos": "adjective", "def": "Talking fluently and at length; articulate.", "ex": "The voluble creative director could pitch any idea with infectious conviction."}, {"word": "Whet", "pos": "verb", "def": "To sharpen; to stimulate appetite or desire.", "ex": "The teaser campaign whetted consumer appetite months before the actual launch."}], [{"word": "Exemplify", "pos": "verb", "def": "To be a typical example of; to illustrate by example.", "ex": "This project exemplifies what happens when strategy and creativity align perfectly."}, {"word": "Yearn", "pos": "verb", "def": "To have a longing desire for something.", "ex": "After a decade of client briefs, he yearned to create a brand entirely from his imagination."}, {"word": "Zealous", "pos": "adjective", "def": "Having or showing great energy in pursuit of a cause.", "ex": "Her zealous attention to brand consistency made her the team's unofficial guardian."}, {"word": "Aberrant", "pos": "adjective", "def": "Departing from the normal type; unusual.", "ex": "The aberrant colour choice was initially questioned but ultimately defined the brand."}, {"word": "Boon", "pos": "noun", "def": "A thing that is helpful or beneficial; a blessing.", "ex": "The new project management tool was a genuine boon for the overextended team."}], [{"word": "Candour", "pos": "noun", "def": "The quality of being open and honest; frankness.", "ex": "She valued candour above all — clients who were honest about their problems got the best work."}, {"word": "Deft", "pos": "adjective", "def": "Demonstrating skill and cleverness.", "ex": "His deft handling of the creative review turned a tense meeting into a productive one."}, {"word": "Elucidate", "pos": "verb", "def": "To make something clear; to explain.", "ex": "The diagram helped elucidate the strategy in a way that words alone could not."}, {"word": "Forthright", "pos": "adjective", "def": "Direct and outspoken without being rude.", "ex": "Her forthright feedback helped the team avoid a direction that would have failed in market."}, {"word": "Gracious", "pos": "adjective", "def": "Courteous and kind, especially in a superior position.", "ex": "She was gracious about the critical review, using every comment to make the work stronger."}], [{"word": "Hallmark", "pos": "noun", "def": "A distinctive feature; a mark of quality or excellence.", "ex": "Simplicity has always been the hallmark of the world's most enduring brand identities."}, {"word": "Illuminate", "pos": "verb", "def": "To help to clarify or explain; to light up.", "ex": "A well-crafted brand story illuminates why a company exists beyond just making money."}, {"word": "Judicious", "pos": "adjective", "def": "Having sound judgement; prudent.", "ex": "A judicious blend of tradition and innovation kept the heritage brand feeling fresh."}, {"word": "Kinship", "pos": "noun", "def": "A sharing of characteristics or origins; a bond.", "ex": "The best brand communities are built on genuine kinship, not manufactured loyalty."}, {"word": "Legacy", "pos": "noun", "def": "Something left or handed down by a predecessor.", "ex": "The goal of every great piece of design is to leave a legacy that outlasts the brief."}]];
+  const START_DATE = new Date('2026-03-14');
+
+  let currentDay = 0;
+
+  function getDayIndex() {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const start = new Date(START_DATE);
+    start.setHours(0,0,0,0);
+    const diff = Math.floor((today - start) / 86400000);
+    return Math.max(0, Math.min(diff, WORDS.length - 1));
+  }
+
+  function renderWords(dayIdx) {
+    const words = WORDS[dayIdx] || [];
+    const label = document.getElementById('words-day-label');
+    const cards = document.getElementById('word-cards');
+    const total = WORDS.length;
+    label.textContent = `Day ${dayIdx + 1} of ${total}`;
+    document.getElementById('nav-prev').disabled = dayIdx === 0;
+    document.getElementById('nav-next').disabled = dayIdx >= getDayIndex();
+    cards.innerHTML = words.map(w => `
+      <div class="word-card">
+        <div class="word-main">${w.word}</div>
+        <div class="word-pos">${w.pos}</div>
+        <div class="word-def">${w.def}</div>
+        <div class="word-ex">${w.ex}</div>
+      </div>`).join('');
+  }
+
+  function changeDay(dir) {
+    const newDay = currentDay + dir;
+    if (newDay < 0 || newDay > getDayIndex()) return;
+    currentDay = newDay;
+    renderWords(currentDay);
+  }
+
+  currentDay = getDayIndex();
+  renderWords(currentDay);
+
+  loadTasks();
+</script>
+</body>
+</html>
