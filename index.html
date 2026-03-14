@@ -223,7 +223,10 @@
     .word-card:nth-child(5n+3) { border-color: #48C774; }
     .word-card:nth-child(5n+4) { border-color: #FF7043; }
     .word-card:nth-child(5n+5) { border-color: #FFAB40; }
-    .word-main   { font-size: 16px; font-weight: 800; color: var(--navy); margin-bottom: 2px; }
+    .word-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+    .word-main   { font-size: 16px; font-weight: 800; color: var(--navy); }
+    .speak-btn   { background: none; border: none; cursor: pointer; font-size: 13px; padding: 0; opacity: 0.4; transition: opacity 0.15s; line-height: 1; flex-shrink: 0; }
+    .speak-btn:hover { opacity: 1; }
     .word-pos    { font-size: 10px; font-style: italic; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.4px; }
     .word-def    { font-size: 12px; color: #444; line-height: 1.5; margin-bottom: 6px; }
     .word-ex     { font-size: 11px; color: #888; line-height: 1.5; font-style: italic; }
@@ -457,7 +460,10 @@
     document.getElementById('nav-next').disabled = dayIdx >= getDayIndex();
     cards.innerHTML = words.map(w => `
       <div class="word-card">
-        <div class="word-main">${w.word}</div>
+        <div class="word-header">
+          <div class="word-main">${w.word}</div>
+          <button class="speak-btn" onclick="speakWord('${w.word}')" title="Hear pronunciation">🔊</button>
+        </div>
         <div class="word-pos">${w.pos}</div>
         <div class="word-def">${w.def}</div>
         <div class="word-ex">${w.ex}</div>
@@ -469,6 +475,15 @@
     if (newDay < 0 || newDay > getDayIndex()) return;
     currentDay = newDay;
     renderWords(currentDay);
+  }
+
+  // ── Speak word ──
+  function speakWord(word) {
+    const utterance = new SpeechSynthesisUtterance(word);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.85;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(utterance);
   }
 
   currentDay = getDayIndex();
