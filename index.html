@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Rob's Tasks</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -233,6 +234,75 @@
     .word-ex::before { content: '"'; }
     .word-ex::after  { content: '"'; }
     @media (max-width: 500px) { .word-cards { grid-template-columns: 1fr 1fr; } }
+
+    /* ── Smart Inbox ── */
+    .inbox-section {
+      background: white; border-radius: var(--radius);
+      padding: 20px 22px; margin-bottom: 20px; box-shadow: var(--shadow);
+    }
+    .inbox-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0; }
+    .inbox-title  { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .inbox-subtitle { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .gmail-btn {
+      background: white; border: 1.5px solid var(--border); border-radius: 10px;
+      padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+      font-family: inherit; color: var(--text); transition: all 0.15s;
+      display: flex; align-items: center; gap: 5px; white-space: nowrap;
+    }
+    .gmail-btn:hover { background: var(--bg); border-color: #aaa; }
+    .gmail-btn.connected { border-color: #4CAF50; color: #155724; background: #e8f5e9; }
+    .email-list { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+    .email-card {
+      border: 1.5px solid var(--border); border-radius: 11px; padding: 14px 16px;
+      transition: border-color 0.15s, box-shadow 0.15s; animation: fadeIn 0.2s ease;
+    }
+    .email-card:hover { border-color: #c0c8dc; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+    .email-card.urgent  { border-left: 4px solid #e74c3c; }
+    .email-card.followup{ border-left: 4px solid #f39c12; }
+    .email-card.fyi     { border-left: 4px solid #95a5a6; }
+    .email-card.noreply { border-left: 4px solid #27ae60; }
+    .email-top     { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+    .urgency-tag   { font-size: 11px; font-weight: 700; }
+    .email-time    { font-size: 11px; color: var(--muted); }
+    .email-from    { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 1px; }
+    .email-subject { font-size: 13px; color: #444; margin-bottom: 8px; }
+    .email-summary { font-size: 12px; color: #555; background: var(--bg); border-radius: 7px; padding: 7px 10px; line-height: 1.55; margin-bottom: 10px; }
+    .email-actions { display: flex; gap: 8px; }
+    .reply-btn {
+      background: var(--navy); color: white; border: none; border-radius: 8px;
+      padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: opacity 0.15s;
+    }
+    .reply-btn:hover { opacity: 0.8; }
+    .open-btn {
+      background: none; border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 6px 12px; font-size: 12px; font-weight: 500; cursor: pointer;
+      font-family: inherit; color: var(--text); transition: background 0.12s;
+    }
+    .open-btn:hover { background: var(--bg); }
+    .reply-area { margin-top: 12px; border-top: 1.5px solid var(--border); padding-top: 12px; display: none; }
+    .reply-area.open { display: block; }
+    .reply-textarea {
+      width: 100%; border: 1.5px solid var(--border); border-radius: 9px;
+      padding: 10px 13px; font-size: 13px; font-family: inherit;
+      resize: vertical; min-height: 90px; outline: none; color: var(--text);
+      transition: border-color 0.15s; line-height: 1.5;
+    }
+    .reply-textarea:focus { border-color: var(--blue); }
+    .reply-send-row { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
+    .send-btn {
+      background: #1a3d2b; color: white; border: none; border-radius: 8px;
+      padding: 7px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: background 0.15s;
+    }
+    .send-btn:hover { background: #2a5d41; }
+    .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .cancel-reply-btn {
+      background: none; border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 7px 14px; font-size: 12px; cursor: pointer; font-family: inherit; color: var(--muted);
+    }
+    .inbox-loading { text-align: center; padding: 24px; color: var(--muted); font-size: 13px; }
+    .inbox-empty   { text-align: center; padding: 24px; color: #bbb; font-size: 13px; }
   </style>
 </head>
 <body>
@@ -272,6 +342,18 @@
       </div>
     </div>
     <div class="word-cards" id="word-cards"></div>
+  </div>
+
+  <!-- Smart Inbox -->
+  <div class="inbox-section">
+    <div class="inbox-header">
+      <div>
+        <div class="inbox-title">📬 Smart Inbox</div>
+        <div class="inbox-subtitle" id="inbox-subtitle">Connect Gmail to see emails that need your attention</div>
+      </div>
+      <button class="gmail-btn" id="gmail-btn" onclick="connectGmail()">🔗 Connect Gmail</button>
+    </div>
+    <div class="email-list" id="email-list"></div>
   </div>
 
   <div class="filters">
@@ -490,6 +572,312 @@
   renderWords(currentDay);
 
   loadTasks();
+
+  // ════════════════════════════════════════
+  // ── Smart Inbox (Gmail + Claude) ──
+  // ════════════════════════════════════════
+
+  // ⚠️  Fill in your Google OAuth Client ID after setting up Google Cloud:
+  const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+  const EDGE_FN_URL = SUPABASE_URL + '/functions/v1/analyze-emails';
+
+  let gmailToken  = null;
+  let tokenClient = null;
+  let inboxEmails = [];
+  let myEmailCache = null;
+  let refreshTimer = null;
+
+  // ── Init Google OAuth (waits for GIS lib to load) ──
+  function initGoogleAuth() {
+    if (typeof google === 'undefined' || !google.accounts) {
+      setTimeout(initGoogleAuth, 400);
+      return;
+    }
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: 'https://www.googleapis.com/auth/gmail.modify',
+      callback: handleGmailToken,
+    });
+  }
+
+  function connectGmail() {
+    if (!tokenClient) { toast('Google auth not ready yet, try again'); return; }
+    tokenClient.requestAccessToken({ prompt: '' });
+  }
+
+  function handleGmailToken(response) {
+    if (response.error) { toast('Gmail connection failed: ' + response.error); return; }
+    gmailToken = response.access_token;
+    const btn = document.getElementById('gmail-btn');
+    btn.textContent = '✓ Connected';
+    btn.classList.add('connected');
+
+    // Token expires in 1 hour — auto-disconnect
+    setTimeout(() => {
+      gmailToken = null;
+      btn.textContent = '🔗 Reconnect Gmail';
+      btn.classList.remove('connected');
+      document.getElementById('inbox-subtitle').textContent = 'Session expired — click to reconnect';
+    }, 55 * 60 * 1000);
+
+    fetchEmails();
+
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(fetchEmails, 2 * 60 * 1000); // Refresh every 2 min
+  }
+
+  // ── Gmail API helper ──
+  async function gmailGet(path) {
+    const res = await fetch('https://www.googleapis.com/gmail/v1/' + path, {
+      headers: { Authorization: 'Bearer ' + gmailToken }
+    });
+    if (!res.ok) throw new Error('Gmail API ' + res.status);
+    return res.json();
+  }
+
+  async function getMyEmail() {
+    if (myEmailCache) return myEmailCache;
+    const p = await gmailGet('users/me/profile');
+    myEmailCache = p.emailAddress;
+    return myEmailCache;
+  }
+
+  function getHeader(msg, name) {
+    const h = (msg.payload?.headers || []).find(h => h.name.toLowerCase() === name.toLowerCase());
+    return h ? h.value : '';
+  }
+
+  // ── Fetch unread threads ──
+  async function fetchEmails() {
+    if (!gmailToken) return;
+    const subtitle = document.getElementById('inbox-subtitle');
+    const list     = document.getElementById('email-list');
+    list.innerHTML = '<div class="inbox-loading">⏳ Fetching emails…</div>';
+    subtitle.textContent = 'Fetching emails…';
+
+    try {
+      const myEmail = await getMyEmail();
+
+      // Unread threads from last 7 days
+      const data = await gmailGet('users/me/threads?q=in:inbox+newer_than:7d&maxResults=25');
+      if (!data.threads?.length) {
+        list.innerHTML = '<div class="inbox-empty">🎉 No threads found!</div>';
+        subtitle.textContent = 'All clear!';
+        return;
+      }
+
+      // Get full thread details
+      const threads = await Promise.all(
+        data.threads.map(t => gmailGet('users/me/threads/' + t.id + '?format=full'))
+      );
+
+      // Keep only threads where the LAST message is NOT from me (i.e. needs a reply)
+      const needsReply = threads.filter(thread => {
+        const last = thread.messages[thread.messages.length - 1];
+        const from = getHeader(last, 'From');
+        return !from.toLowerCase().includes(myEmail.toLowerCase());
+      });
+
+      if (!needsReply.length) {
+        list.innerHTML = '<div class="inbox-empty">🎉 You\'ve replied to everything!</div>';
+        subtitle.textContent = 'All caught up!';
+        return;
+      }
+
+      // Parse email objects
+      const emailData = needsReply.map(thread => {
+        const last  = thread.messages[thread.messages.length - 1];
+        const first = thread.messages[0];
+        return {
+          id:              thread.id,
+          messageId:       last.id,
+          from:            getHeader(last, 'From'),
+          subject:         getHeader(first, 'Subject') || '(no subject)',
+          date:            getHeader(last, 'Date'),
+          snippet:         last.snippet || '',
+          threadLength:    thread.messages.length,
+          messageIdHeader: getHeader(last, 'Message-ID'),
+          references:      getHeader(last, 'References') || getHeader(last, 'Message-ID'),
+          toReply:         getHeader(last, 'Reply-To') || getHeader(last, 'From'),
+          threadId:        thread.id,
+        };
+      });
+
+      subtitle.textContent = 'Analyzing ' + emailData.length + ' emails with Claude…';
+      const analyzed = await analyzeWithClaude(emailData);
+      inboxEmails = analyzed;
+      renderInbox(analyzed);
+      subtitle.textContent = analyzed.length + ' emails need attention · Updated ' +
+        new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+    } catch (err) {
+      console.error('Inbox error:', err);
+      list.innerHTML = '<div class="inbox-empty">⚠️ Error loading inbox — try reconnecting Gmail</div>';
+      subtitle.textContent = 'Error fetching emails';
+    }
+  }
+
+  // ── Analyze emails with Claude via Supabase Edge Function ──
+  async function analyzeWithClaude(emails) {
+    const payload = emails.map(e => ({
+      id:            e.id,
+      from:          e.from,
+      subject:       e.subject,
+      snippet:       e.snippet,
+      date:          e.date,
+      thread_length: e.threadLength,
+    }));
+
+    try {
+      const res = await fetch(EDGE_FN_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+        },
+        body: JSON.stringify({ emails: payload }),
+      });
+      const analysis = await res.json();
+
+      return emails.map(email => {
+        const a = Array.isArray(analysis) ? analysis.find(x => x.id === email.id) : null;
+        return {
+          ...email,
+          importance_score: a?.importance_score ?? 5,
+          urgency_tag:      a?.urgency_tag      ?? '⚪ FYI',
+          summary:          a?.summary          ?? email.snippet,
+          suggested_reply:  a?.suggested_reply  ?? '',
+        };
+      }).sort((a, b) => b.importance_score - a.importance_score);
+
+    } catch (err) {
+      console.error('Claude analysis error:', err);
+      return emails.map(e => ({
+        ...e, importance_score: 5, urgency_tag: '⚪ FYI',
+        summary: e.snippet, suggested_reply: '',
+      }));
+    }
+  }
+
+  // ── Helpers ──
+  function urgencyClass(tag) {
+    if (tag.includes('Urgent'))   return 'urgent';
+    if (tag.includes('Follow'))   return 'followup';
+    if (tag.includes('No Reply')) return 'noreply';
+    return 'fyi';
+  }
+
+  function timeAgo(dateStr) {
+    if (!dateStr) return '';
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60)  return mins + 'm ago';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24)   return hrs + 'h ago';
+    return Math.floor(hrs / 24) + 'd ago';
+  }
+
+  function senderName(from) {
+    const m = from.match(/^"?([^"<]+)"?\s*</);
+    return m ? m[1].trim() : from.replace(/<.*>/, '').trim();
+  }
+
+  // ── Render inbox ──
+  function renderInbox(emails) {
+    const list = document.getElementById('email-list');
+    if (!emails.length) {
+      list.innerHTML = '<div class="inbox-empty">🎉 Nothing needs your attention!</div>';
+      return;
+    }
+    list.innerHTML = emails.map(e => `
+      <div class="email-card ${urgencyClass(e.urgency_tag)}" id="ecard-${e.id}">
+        <div class="email-top">
+          <span class="urgency-tag">${e.urgency_tag}</span>
+          <span class="email-time">${timeAgo(e.date)}</span>
+        </div>
+        <div class="email-from">${senderName(e.from)}</div>
+        <div class="email-subject">${e.subject}</div>
+        <div class="email-summary">${e.summary}</div>
+        <div class="email-actions">
+          <button class="reply-btn" onclick="toggleReply('${e.id}')">✏️ Reply</button>
+          <button class="open-btn"  onclick="openInGmail('${e.threadId}')">↗ Open in Gmail</button>
+        </div>
+        <div class="reply-area" id="reply-area-${e.id}">
+          <textarea class="reply-textarea" id="rtext-${e.id}">${e.suggested_reply}</textarea>
+          <div class="reply-send-row">
+            <button class="cancel-reply-btn" onclick="toggleReply('${e.id}')">Cancel</button>
+            <button class="send-btn" id="send-${e.id}" onclick="sendReply('${e.id}')">Send Reply →</button>
+          </div>
+        </div>
+      </div>`).join('');
+  }
+
+  function toggleReply(emailId) {
+    const area = document.getElementById('reply-area-' + emailId);
+    area.classList.toggle('open');
+    if (area.classList.contains('open')) {
+      document.getElementById('rtext-' + emailId).focus();
+    }
+  }
+
+  function openInGmail(threadId) {
+    window.open('https://mail.google.com/mail/u/0/#inbox/' + threadId, '_blank');
+  }
+
+  // ── Send reply via Gmail API ──
+  async function sendReply(emailId) {
+    const email = inboxEmails.find(e => e.id === emailId);
+    if (!email) return;
+    const replyText = document.getElementById('rtext-' + emailId).value.trim();
+    if (!replyText) { toast('Write your reply first'); return; }
+
+    const sendBtn = document.getElementById('send-' + emailId);
+    sendBtn.textContent = 'Sending…';
+    sendBtn.disabled = true;
+
+    try {
+      const myEmail = await getMyEmail();
+      const raw = [
+        'To: '          + email.toReply,
+        'From: '        + myEmail,
+        'Subject: Re: ' + email.subject.replace(/^Re:\s*/i, ''),
+        'In-Reply-To: ' + email.messageIdHeader,
+        'References: '  + email.references,
+        'Content-Type: text/plain; charset=utf-8',
+        '',
+        replyText,
+      ].join('\r\n');
+
+      // Base64url encode
+      const encoded = btoa(unescape(encodeURIComponent(raw)))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+      const res = await fetch('https://www.googleapis.com/gmail/v1/users/me/messages/send', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + gmailToken,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ raw: encoded, threadId: email.threadId }),
+      });
+
+      if (!res.ok) throw new Error('Send failed ' + res.status);
+      toast('✓ Reply sent!');
+      document.getElementById('ecard-' + emailId)?.remove();
+      inboxEmails = inboxEmails.filter(e => e.id !== emailId);
+      if (!inboxEmails.length) {
+        document.getElementById('email-list').innerHTML = '<div class="inbox-empty">🎉 All done! Inbox zero!</div>';
+      }
+    } catch (err) {
+      console.error('Send error:', err);
+      toast('Send failed — see console');
+      sendBtn.textContent = 'Send Reply →';
+      sendBtn.disabled = false;
+    }
+  }
+
+  initGoogleAuth();
 </script>
 </body>
 </html>
