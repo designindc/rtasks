@@ -235,6 +235,42 @@
     .word-ex::after  { content: '"'; }
     @media (max-width: 500px) { .word-cards { grid-template-columns: 1fr 1fr; } }
 
+    /* ── Daily Stoic ── */
+    .stoic-section {
+      background: white; border-radius: var(--radius);
+      padding: 20px 22px; margin-bottom: 20px; box-shadow: var(--shadow);
+    }
+    .stoic-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+    }
+    .stoic-title     { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .stoic-day-label { font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+    .stoic-card {
+      background: linear-gradient(135deg, #1a3d2b08, #3a9d6e0d);
+      border: 1.5px solid #3a9d6e30; border-radius: 12px; padding: 22px 24px;
+      position: relative; overflow: hidden;
+    }
+    .stoic-card::before {
+      content: '\201C'; position: absolute; top: -10px; left: 12px;
+      font-size: 100px; color: #3a9d6e18; font-family: Georgia, serif;
+      line-height: 1; pointer-events: none;
+    }
+    .stoic-theme {
+      font-size: 10px; font-weight: 800; color: #3a9d6e;
+      text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px;
+    }
+    .stoic-quote {
+      font-size: 16px; line-height: 1.7; color: var(--text);
+      font-style: italic; font-family: Georgia, 'Times New Roman', serif;
+      margin-bottom: 14px; position: relative; z-index: 1;
+    }
+    .stoic-attribution {
+      font-size: 12px; font-weight: 700; color: #1a3d2b; margin-bottom: 0; letter-spacing: 0.2px;
+    }
+    .stoic-attribution span { font-weight: 400; color: var(--muted); }
+    .stoic-divider { border: none; border-top: 1.5px solid #3a9d6e25; margin: 14px 0; }
+    .stoic-reflection { font-size: 13px; line-height: 1.65; color: #444; }
+
     /* ── Smart Inbox ── */
     .inbox-section {
       background: white; border-radius: var(--radius);
@@ -342,6 +378,21 @@
       </div>
     </div>
     <div class="word-cards" id="word-cards"></div>
+  </div>
+
+  <!-- Daily Stoic -->
+  <div class="stoic-section">
+    <div class="stoic-header">
+      <div>
+        <div class="stoic-title">🏛️ Daily Stoic</div>
+        <div class="stoic-day-label" id="stoic-day-label"></div>
+      </div>
+      <div class="words-nav">
+        <button class="nav-btn" id="stoic-prev" onclick="changeStoicDay(-1)" title="Previous day">←</button>
+        <button class="nav-btn" id="stoic-next" onclick="changeStoicDay(1)"  title="Next day">→</button>
+      </div>
+    </div>
+    <div id="stoic-card"></div>
   </div>
 
   <!-- Smart Inbox -->
@@ -876,6 +927,315 @@
       sendBtn.disabled = false;
     }
   }
+
+  // ════════════════════════════════════════
+  // ── Daily Stoic ──
+  // ════════════════════════════════════════
+
+  const STOIC_DATA = [
+    {
+      theme: "The Dichotomy of Control",
+      quote: "Make the best use of what is in your power, and take the rest as it happens.",
+      author: "Epictetus", source: "Enchiridion, I",
+      reflection: "The Stoics divided the world into two categories: what is up to us and what is not. Our opinions, impulses, desires, and aversions are ours. Everything else — health, reputation, property — is not. Work on what you can govern; release what you cannot."
+    },
+    {
+      theme: "The Present Moment",
+      quote: "Confine yourself to the present.",
+      author: "Marcus Aurelius", source: "Meditations, VIII.7",
+      reflection: "We suffer more in imagination than in reality. The past is memory; the future is speculation. The only place where life actually happens is right now. What would it look like to be fully here?"
+    },
+    {
+      theme: "On Wasted Time",
+      quote: "It is not that we have a short time to live, but that we waste a good deal of it.",
+      author: "Seneca", source: "On the Shortness of Life, I",
+      reflection: "Life is long enough if you know how to use it. Most of what we call 'busyness' is not important work — it's distraction. Guard your time as you would guard your most precious resource, because it is."
+    },
+    {
+      theme: "Memento Mori",
+      quote: "Think of yourself as dead. You have lived your life. Now take what's left and live it properly.",
+      author: "Marcus Aurelius", source: "Meditations, VII.9",
+      reflection: "The contemplation of death is not morbid — it is clarifying. When you remember that your days are numbered, trivial irritations fall away and what truly matters becomes obvious. Use this perspective today."
+    },
+    {
+      theme: "The Obstacle Is the Way",
+      quote: "The impediment to action advances action. What stands in the way becomes the way.",
+      author: "Marcus Aurelius", source: "Meditations, V.20",
+      reflection: "Every challenge contains within it an opportunity. The Stoics didn't just tolerate obstacles — they used them. The fire that melts butter also hardens steel. How can today's difficulty make you stronger?"
+    },
+    {
+      theme: "On Anger",
+      quote: "How much more grievous are the consequences of anger than the causes of it.",
+      author: "Marcus Aurelius", source: "Meditations, XI.18",
+      reflection: "Anger always costs more than it gains. Before acting in anger, ask: what will the aftermath look like? The insult that provoked you lasts a second; the damage done in anger can last years. Pause. Breathe. Respond rather than react."
+    },
+    {
+      theme: "Amor Fati",
+      quote: "Do not seek that the things which happen should happen as you wish; but wish the things which happen to be as they are, and you will have a tranquil flow of life.",
+      author: "Epictetus", source: "Enchiridion, VIII",
+      reflection: "Amor fati — love of fate. This doesn't mean passivity; it means not spending energy resisting what has already happened. Accept it, work with it, and you will find far more peace than fighting reality ever gave you."
+    },
+    {
+      theme: "The Inner Citadel",
+      quote: "You have power over your mind, not outside events. Realize this, and you will find strength.",
+      author: "Marcus Aurelius", source: "Meditations, VII.54",
+      reflection: "No external force can reach inside you without your permission. Your judgments, your character, your inner response to life — these are yours alone. Build that inner fortress strong, and nothing can truly harm you."
+    },
+    {
+      theme: "On Virtue",
+      quote: "Waste no more time arguing about what a good person should be. Be one.",
+      author: "Marcus Aurelius", source: "Meditations, X.16",
+      reflection: "Philosophy that stays in the head is useless. The Stoics believed virtue is not an intellectual achievement — it is a daily practice. Stop theorizing about the right thing to do. Just do it."
+    },
+    {
+      theme: "On Complaint",
+      quote: "Do not indulge in complaints about your own lot. Let every day be a new beginning.",
+      author: "Epictetus", source: "Discourses, I.1",
+      reflection: "Every moment you spend complaining is a moment stolen from action. Complaining signals to your brain that you are a victim of your circumstances rather than the author of your response to them. Choose differently."
+    },
+    {
+      theme: "On True Wealth",
+      quote: "He is richest who is content with the least, for contentment is the wealth of nature.",
+      author: "Socrates", source: "as quoted by Diogenes Laërtius",
+      reflection: "Wealth without contentment is poverty. Contentment without wealth is abundance. The Stoics didn't shun comfort, but they trained themselves not to need it. What if you already have enough?"
+    },
+    {
+      theme: "Letters to a Future Self",
+      quote: "Omnia, Lucili, aliena sunt, tempus tantum nostrum est. — Everything is foreign to us, Lucilius; time alone belongs to us.",
+      author: "Seneca", source: "Letters from a Stoic, I",
+      reflection: "Money can be earned again, objects replaced, relationships rebuilt — but a lost hour is gone forever. Seneca's first letter to Lucilius opens with this radical idea. How are you spending the one resource you can never replenish?"
+    },
+    {
+      theme: "The View from Above",
+      quote: "How many a Fabricius, a Scipio, a Cato, have time swallowed up? Think of them often, and of all that followed them, and of all that will follow you.",
+      author: "Marcus Aurelius", source: "Meditations, VIII.31",
+      reflection: "Zoom out. Empires that seemed eternal have crumbled. Names that were on every tongue are forgotten. This is not depressing — it is liberating. It means today's anxieties are smaller than they feel. Act well. Let go of the rest."
+    },
+    {
+      theme: "On Acceptance",
+      quote: "Never let the future disturb you. You will meet it, if you have to, with the same weapons of reason which today arm you against the present.",
+      author: "Marcus Aurelius", source: "Meditations, VII.8",
+      reflection: "Worry is paying interest on a debt you may never owe. The future you dread rarely arrives in the form you imagined. And if it does, you will face it with the same mind you have today. Trust yourself."
+    },
+    {
+      theme: "On Solitude",
+      quote: "Retire into yourself as much as you can; associate with those who will make a better man of you. Welcome those whom you yourself can improve.",
+      author: "Seneca", source: "Letters from a Stoic, VII",
+      reflection: "Who we spend time with shapes who we become. Seneca warns against being swept away by the crowd — not out of misanthropy, but because the crowd rarely pulls us toward our best selves. Choose your companions and your solitude with equal care."
+    },
+    {
+      theme: "On Pain",
+      quote: "If it is not right, do not do it; if it is not true, do not say it.",
+      author: "Marcus Aurelius", source: "Meditations, XII.17",
+      reflection: "Two rules, simple enough to remember in any moment. Before every action, ask: is this right? Before every word, ask: is this true? Most regrettable actions fail at least one of these tests. Run this check first."
+    },
+    {
+      theme: "Negative Visualization",
+      quote: "Begin at once to live, and count each separate day as a separate life.",
+      author: "Seneca", source: "Letters from a Stoic, LXXVII",
+      reflection: "The Stoics practiced premeditatio malorum — imagining that what we love could be lost. Not to suffer in advance, but to appreciate what we have while we have it. Today, look at the people and things you value as if seeing them for the last time."
+    },
+    {
+      theme: "On Reputation",
+      quote: "It never ceases to amaze me: we all love ourselves more than other people, but care more about their opinion than our own.",
+      author: "Marcus Aurelius", source: "Meditations, XII.4",
+      reflection: "We contort ourselves for approval from people we wouldn't choose as advisors. The Stoics called this absurd. Your own considered judgment of your actions matters more than any audience's reaction. What would you do if no one were watching?"
+    },
+    {
+      theme: "The Practicing Philosopher",
+      quote: "Don't explain your philosophy. Embody it.",
+      author: "Epictetus", source: "Discourses, III.16",
+      reflection: "Philosophy is not a badge or a brand — it is a way of being in the world. Anyone can quote Marcus Aurelius. What matters is whether the words have changed how you act when things get hard. Let your life be your argument."
+    },
+    {
+      theme: "On Friendship",
+      quote: "One who seeks friendship for favorable occasions strips it of all its nobility.",
+      author: "Seneca", source: "Letters from a Stoic, IX",
+      reflection: "Transactional relationships aren't friendships — they're partnerships of convenience. True friendship, said Seneca, is valued for its own sake. The friend who shows up when it costs them something is worth more than a hundred fair-weather allies."
+    },
+    {
+      theme: "On Death",
+      quote: "Let us prepare our minds as if we had come to the very end of life. Let us postpone nothing.",
+      author: "Seneca", source: "Letters from a Stoic, I",
+      reflection: "The awareness of death is a gift. It cuts through procrastination and petty conflict instantly. If today were your last, what would matter? Who would you call? What would you forgive? Don't wait for urgency to create clarity."
+    },
+    {
+      theme: "On Justice",
+      quote: "The best revenge is to be unlike him who performed the injustice.",
+      author: "Marcus Aurelius", source: "Meditations, VI.6",
+      reflection: "When someone wrongs us, we want to descend to their level. But retaliating in kind is a form of letting them win — they have shaped your behavior. The Stoic response is to remain the person you want to be, regardless of what others do."
+    },
+    {
+      theme: "On Discipline",
+      quote: "No person has the power to have everything they want, but it is in their power not to want what they don't have, and to cheerfully put to good use what they do have.",
+      author: "Seneca", source: "Letters from a Stoic, CXXIII",
+      reflection: "Self-discipline is not deprivation — it is liberation from the tyranny of wanting. When you train yourself to find satisfaction in what you already have, no setback can steal your peace. Enough is already here."
+    },
+    {
+      theme: "On Consistency",
+      quote: "First say to yourself what you would be; and then do what you have to do.",
+      author: "Epictetus", source: "Discourses, III.23",
+      reflection: "Identity precedes action. The person who has decided who they are finds the right choice easier to make — because it's not a choice, it's an expression of character. Decide who you are. Then act accordingly, every time."
+    },
+    {
+      theme: "On Equanimity",
+      quote: "He suffers more than necessary, who suffers before it is necessary.",
+      author: "Seneca", source: "Letters from a Stoic, XCVIII",
+      reflection: "Most of our suffering is borrowed from a future that hasn't arrived. We grieve outcomes that aren't certain, rehearse catastrophes that may never happen. The Stoics called this a double loss: suffering now for something that may never come."
+    },
+    {
+      theme: "On Progress",
+      quote: "Progress is not achieved by luck or accident, but by working on yourself daily.",
+      author: "Epictetus", source: "Discourses, I.20",
+      reflection: "The Stoics had no interest in theory without practice. Growth is not a sudden transformation — it is the compounding result of small daily choices. Who you are in a year is being decided by what you do today."
+    },
+    {
+      theme: "On Comparison",
+      quote: "How can I know what is tolerable for a man if I do not know what that man's limits are?",
+      author: "Seneca", source: "Letters from a Stoic, LXXI",
+      reflection: "Comparing yourself to others is a losing game with no finish line. Their path is not yours; their obstacles are not yours; their gifts are not yours. The Stoics measured progress against one standard only: who you were yesterday."
+    },
+    {
+      theme: "On Simplicity",
+      quote: "Seek not that the things which happen should happen as you wish; but wish the things which happen to be as they are.",
+      author: "Epictetus", source: "Enchiridion, VIII",
+      reflection: "Complexity is often resistance in disguise. We complicate our lives by insisting on conditions — I'll be happy when, I'll be at peace if. The Stoic path is simpler: show up fully to exactly what is here, as it is."
+    },
+    {
+      theme: "On Leadership",
+      quote: "When you wake up in the morning, tell yourself: The people I deal with today will be meddling, ungrateful, arrogant, dishonest, jealous, and surly.",
+      author: "Marcus Aurelius", source: "Meditations, II.1",
+      reflection: "Marcus didn't write this to become cynical — he wrote it to become patient. If you expect human imperfection, you won't be derailed by it. You can lead, serve, and love difficult people when their difficulty no longer surprises you."
+    },
+    {
+      theme: "On Silence",
+      quote: "Better to be silent and be thought a fool than to speak and remove all doubt. More important: be silent and keep improving.",
+      author: "Epictetus", source: "Enchiridion, XXXIII",
+      reflection: "The Stoics esteemed restraint in speech. Not every thought deserves expression. Not every provocation deserves a response. Silence is often the most powerful reply — and it preserves your energy for what actually matters."
+    },
+    {
+      theme: "On Service",
+      quote: "What is the purpose of a human being? To serve others.",
+      author: "Marcus Aurelius", source: "Meditations, VIII.7",
+      reflection: "Marcus Aurelius was the most powerful man in the world and wrote this in his private journal. He reminded himself daily that power exists to serve. What would shift in your day if you framed your role — in work, at home, in friendship — as service?"
+    },
+    {
+      theme: "On Failure",
+      quote: "A good person dyes events with his own color, and turns whatever happens to his own benefit.",
+      author: "Seneca", source: "Letters from a Stoic, XCVIII",
+      reflection: "Failure is neutral data until we assign it meaning. The Stoic advantage is not avoiding setbacks — it's the ability to extract something useful from every one of them. The question isn't what happened, but: what can I do with this?"
+    },
+    {
+      theme: "On Fear",
+      quote: "We suffer more in imagination than in reality.",
+      author: "Seneca", source: "Letters from a Stoic, XIII",
+      reflection: "Fear is almost always larger than its cause. We amplify threats, imagine worst cases, rehearse disasters. The Stoic practice is to look at fear directly and ask: is this probable? Is this as bad as I'm imagining? Usually, the honest answer is no."
+    },
+    {
+      theme: "On Enough",
+      quote: "If you shape your life according to nature, you will never be poor; if according to people's opinions, you will never be rich.",
+      author: "Seneca", source: "Letters from a Stoic, XVI",
+      reflection: "The pursuit of 'more' designed by others' standards has no finish line. The Stoics asked: what do I actually need to live well? That number is smaller than the culture suggests. Finding it is a kind of freedom."
+    },
+    {
+      theme: "On Resilience",
+      quote: "The art of living is more like wrestling than dancing, in so far as it stands ready against the accidental and the unforeseen.",
+      author: "Marcus Aurelius", source: "Meditations, VII.61",
+      reflection: "Life is not a choreographed performance — it is improvised, contested, and unpredictable. The person who has trained their character to remain steady in chaos has a profound advantage. Train for the unexpected. It will come."
+    },
+    {
+      theme: "On Character",
+      quote: "Character is simply habit long continued.",
+      author: "Plutarch", source: "Moralia",
+      reflection: "You do not decide who you are in a single dramatic moment. You decide in the thousand small moments when no one is watching and the stakes seem low. Character is built quietly, one choice at a time. What are your habits building?"
+    },
+    {
+      theme: "On Gratitude",
+      quote: "Do not spoil what you have by desiring what you have not; remember that what you now have was once among the things you only hoped for.",
+      author: "Epicurus", source: "as quoted in Stoic literature",
+      reflection: "Cast your mind back to a time when what you have now was what you desperately wanted. You prayed for this job, this relationship, this health, this peace. It arrived. Notice it. The Stoics called the failure to do this the great ingratitude of living."
+    },
+    {
+      theme: "On Kindness",
+      quote: "Wherever there is a human being, there is an opportunity for kindness.",
+      author: "Seneca", source: "Letters from a Stoic, LV",
+      reflection: "Stoicism is not coldness — it is clarity. Marcus Aurelius was one of history's great rulers precisely because Stoic discipline freed him to be genuinely kind without sentimentality. See the person in front of you. That is enough."
+    },
+    {
+      theme: "On Action",
+      quote: "It is not death that a man should fear, but he should fear never beginning to live.",
+      author: "Marcus Aurelius", source: "Meditations, VII.9",
+      reflection: "The great tragedy is not dying — it is drifting through years without truly engaging with your life. The Stoics were urgently alive. They showed up fully. Whatever you've been putting off — begin. Today is the day that already existed."
+    },
+    {
+      theme: "On Judgment",
+      quote: "The things that truly need our attention are what our judgments do to ourselves.",
+      author: "Epictetus", source: "Discourses, III.3",
+      reflection: "Every event is followed by a judgment: this is good, this is bad, this is unfair. The Stoics knew that the judgment causes more suffering than the event. Examine your interpretations before you trust them. They are often neither accurate nor useful."
+    },
+    {
+      theme: "Evening Reflection",
+      quote: "I will keep constant watch over myself and — most usefully — will put each day up for review.",
+      author: "Seneca", source: "Letters from a Stoic, LXXXIII",
+      reflection: "Seneca wrote of questioning himself each night: Where did I go wrong today? What could I have done better? What did I actually do well? This is not self-punishment — it is the practice of becoming. The examined day becomes the better tomorrow."
+    },
+    {
+      theme: "On Continuity",
+      quote: "Perfection of character is this: to live each day as if it were your last, without frenzy, without apathy, without pretense.",
+      author: "Marcus Aurelius", source: "Meditations, VII.69",
+      reflection: "Three enemies of the present day: the frenzied rush that mistakes activity for progress, the apathy that gives up entirely, and the pretense that performs rather than lives. Today: be present, be engaged, be real."
+    },
+    {
+      theme: "On Learning",
+      quote: "Seek those who will make you better. Welcome those whom you yourself can improve. The process is mutual; for men learn while they teach.",
+      author: "Seneca", source: "Letters from a Stoic, VII",
+      reflection: "Every relationship is a school. The person who knows more than you can show you the path; the person who knows less gives you the gift of articulating what you understand. Seek both kinds. Be generous in both directions."
+    },
+    {
+      theme: "The Good Life",
+      quote: "He who lives in harmony with himself lives in harmony with the universe.",
+      author: "Marcus Aurelius", source: "Meditations, IV.3",
+      reflection: "The Stoics believed that virtue — living according to reason and nature — was sufficient for happiness. Not wealth, not fame, not approval. Internal alignment produces a life that feels coherent and whole. What would living in harmony with your own values actually look like today?"
+    },
+  ];
+
+  let currentStoicDay = 0;
+
+  function getStoicIndex() {
+    const now   = new Date();
+    const start = new Date(now.getFullYear(), 0, 0);
+    const dayOfYear = Math.floor((now - start) / 86400000);
+    return dayOfYear % STOIC_DATA.length;
+  }
+
+  function renderStoic(idx) {
+    const s = STOIC_DATA[idx];
+    const dateStr = new Date(Date.now() + (idx - getStoicIndex()) * 86400000)
+      .toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    document.getElementById('stoic-day-label').textContent = dateStr;
+
+    document.getElementById('stoic-card').innerHTML = `
+      <div class="stoic-card">
+        <div class="stoic-theme">${s.theme}</div>
+        <div class="stoic-quote">${s.quote}</div>
+        <div class="stoic-attribution">— ${s.author} <span>· ${s.source}</span></div>
+        <hr class="stoic-divider"/>
+        <div class="stoic-reflection">${s.reflection}</div>
+      </div>`;
+
+    document.getElementById('stoic-prev').disabled = (idx === 0);
+    document.getElementById('stoic-next').disabled = (idx === STOIC_DATA.length - 1);
+  }
+
+  function changeStoicDay(dir) {
+    const next = currentStoicDay + dir;
+    if (next < 0 || next >= STOIC_DATA.length) return;
+    currentStoicDay = next;
+    renderStoic(currentStoicDay);
+  }
+
+  currentStoicDay = getStoicIndex();
+  renderStoic(currentStoicDay);
 
   initGoogleAuth();
 </script>
