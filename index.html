@@ -141,7 +141,14 @@
       transform: rotate(45deg) translateY(-1px);
     }
 
-    .task-name { flex: 1; font-size: 14px; font-weight: 500; }
+    .task-name { flex: 1; font-size: 14px; font-weight: 500; cursor: text; }
+    .task-name:hover { color: var(--blue); }
+    .task-name-input {
+      flex: 1; font-size: 14px; font-weight: 500; font-family: inherit;
+      border: 1.5px solid var(--blue); border-radius: 7px;
+      padding: 2px 8px; outline: none; color: var(--text);
+      background: white; min-width: 0;
+    }
 
     .status-badge {
       font-size: 11px; font-weight: 600;
@@ -496,6 +503,38 @@
     render();
   }
 
+  // ── Inline Edit Task Name ──
+  function startEditTask(id) {
+    const span = document.querySelector(`[ondblclick="startEditTask(${id})"]`);
+    if (!span) return;
+    const current = span.textContent;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'task-name-input';
+    input.value = current;
+    span.replaceWith(input);
+    input.focus();
+    input.select();
+
+    async function save() {
+      const newName = input.value.trim();
+      if (!newName || newName === current) { input.replaceWith(span); return; }
+      const { error } = await db.from('tasks').update({ task: newName }).eq('id', id);
+      if (error) { toast('❌ Could not save'); input.replaceWith(span); return; }
+      const t = allTasks.find(t => t.id === id);
+      if (t) t.name = newName;
+      span.textContent = newName;
+      input.replaceWith(span);
+      toast('✓ Task updated');
+    }
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter')  { e.preventDefault(); save(); }
+      if (e.key === 'Escape') { input.replaceWith(span); }
+    });
+    input.addEventListener('blur', save);
+  }
+
   // ── Delete ──
   async function deleteTask(id) {
     if (!confirm('Delete this task?')) return;
@@ -556,7 +595,7 @@
             <input type="checkbox" id="chk-${t.id}" ${t.status==='done'?'checked':''} onchange="toggleDone(${t.id},this.checked)"/>
             <label for="chk-${t.id}"></label>
           </div>
-          <span class="task-name">${t.name}</span>
+          <span class="task-name" ondblclick="startEditTask(${t.id})" title="Double-click to edit">${t.name}</span>
           <span onclick="cycleStatus(${t.id})">${badgeHTML(t.status)}</span>
           <button class="delete-btn" onclick="deleteTask(${t.id})" title="Delete">×</button>
         </div>`;
