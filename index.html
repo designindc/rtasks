@@ -372,6 +372,12 @@
     }
     .inbox-loading { text-align: center; padding: 24px; color: var(--muted); font-size: 13px; }
     .inbox-empty   { text-align: center; padding: 24px; color: #bbb; font-size: 13px; }
+    .inbox-banner  {
+      background: #e8f5e9; border: 1.5px solid #4CAF50; border-radius: 9px;
+      padding: 9px 14px; font-size: 12px; font-weight: 600; color: #155724;
+      cursor: pointer; text-align: center; margin-top: 12px; transition: background 0.15s;
+    }
+    .inbox-banner:hover { background: #d4edda; }
   </style>
 </head>
 <body>
@@ -440,6 +446,7 @@
         <button class="gmail-btn" id="gmail-btn" onclick="connectGmail()">🔗 Connect Gmail</button>
       </div>
     </div>
+    <div id="inbox-banner" class="inbox-banner" style="display:none" onclick="fetchEmails()"></div>
     <div class="email-list" id="email-list"></div>
   </div>
 
@@ -741,7 +748,24 @@
     fetchEmails();
 
     if (refreshTimer) clearInterval(refreshTimer);
-    refreshTimer = setInterval(fetchEmails, 2 * 60 * 1000); // Refresh every 2 min
+    refreshTimer = setInterval(silentCheck, 3 * 60 * 1000); // Silent check every 3 min
+  }
+
+  // ── Silent background check — no re-render, just notify ──
+  async function silentCheck() {
+    if (!gmailToken) return;
+    try {
+      const myEmail = await getMyEmail();
+      const data = await gmailGet('users/me/threads?q=in:inbox+newer_than:7d&maxResults=25');
+      if (!data.threads?.length) return;
+      const currentIds = new Set(inboxEmails.map(e => e.id));
+      const newCount = data.threads.filter(t => !currentIds.has(t.id) && !isSnoozed(t.id) && !isDismissed(t.id)).length;
+      if (newCount > 0) {
+        const banner = document.getElementById('inbox-banner');
+        banner.textContent = '📬 ' + newCount + ' new email' + (newCount > 1 ? 's' : '') + ' — tap to refresh';
+        banner.style.display = '';
+      }
+    } catch { /* silent fail */ }
   }
 
   // ── Gmail API helper ──
@@ -768,6 +792,7 @@
   // ── Fetch unread threads ──
   async function fetchEmails() {
     if (!gmailToken) return;
+    document.getElementById('inbox-banner').style.display = 'none';
     const subtitle = document.getElementById('inbox-subtitle');
     const list     = document.getElementById('email-list');
     list.innerHTML = '<div class="inbox-loading">⏳ Fetching emails…</div>';
@@ -789,11 +814,13 @@
         data.threads.map(t => gmailGet('users/me/threads/' + t.id + '?format=full'))
       );
 
-      // Keep only threads where the LAST message is NOT from me AND not snoozed
+      // Keep only threads where: last msg not from me, not snoozed, not dismissed
       const needsReply = threads.filter(thread => {
         const last = thread.messages[thread.messages.length - 1];
         const from = getHeader(last, 'From');
-        return !from.toLowerCase().includes(myEmail.toLowerCase()) && !isSnoozed(thread.id);
+        return !from.toLowerCase().includes(myEmail.toLowerCase())
+          && !isSnoozed(thread.id)
+          && !isDismissed(thread.id);
       });
 
       if (!needsReply.length) {
@@ -1004,6 +1031,7 @@
   function dismissEmail(emailId) {
     const email = inboxEmails.find(e => e.id === emailId);
     if (email) gmailMarkRead(email.messageId);
+    rememberDismissed(emailId);
     removeEmailCard(emailId);
     toast('Dismissed');
   }
@@ -1011,6 +1039,7 @@
   async function markReadEmail(emailId) {
     const email = inboxEmails.find(e => e.id === emailId);
     if (email) await gmailMarkRead(email.messageId);
+    rememberDismissed(emailId);
     removeEmailCard(emailId);
     toast('✓ Marked as done');
   }
@@ -1029,6 +1058,21 @@
     const active = snoozed.filter(s => s.until > now);
     localStorage.setItem('snoozed_emails', JSON.stringify(active));
     return active.some(s => s.id === emailId);
+  }
+
+  function isDismissed(emailId) {
+    const dismissed = JSON.parse(localStorage.getItem('dismissed_emails') || '[]');
+    // Keep dismissed list for 7 days max to avoid it growing forever
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const active = dismissed.filter(d => d.at > cutoff);
+    localStorage.setItem('dismissed_emails', JSON.stringify(active));
+    return active.some(d => d.id === emailId);
+  }
+
+  function rememberDismissed(emailId) {
+    const dismissed = JSON.parse(localStorage.getItem('dismissed_emails') || '[]');
+    dismissed.push({ id: emailId, at: Date.now() });
+    localStorage.setItem('dismissed_emails', JSON.stringify(dismissed));
   }
 
   async function gmailMarkRead(messageId) {
