@@ -783,8 +783,17 @@
   const EDGE_FN_URL = SUPABASE_URL + '/functions/v1/analyze-emails';
 
   let gmailToken  = null;
+
+  // ── Inbox cache (persists emails until dismissed) ──
+  function saveInboxCache() {
+    try { localStorage.setItem('inbox_cache', JSON.stringify(inboxEmails)); } catch {}
+  }
+  function loadInboxCache() {
+    try { return JSON.parse(localStorage.getItem('inbox_cache') || '[]'); } catch { return []; }
+  }
+
   let tokenClient = null;
-  let inboxEmails = [];
+  let inboxEmails = loadInboxCache();
   let myEmailCache = null;
   let refreshTimer = null;
 
@@ -887,43 +896,67 @@
     if (!gmailToken) return;
     document.getElementById('inbox-banner').style.display = 'none';
     const subtitle = document.getElementById('inbox-subtitle');
-    const list     = document.getElementById('email-list');
-    list.innerHTML = '<div class="inbox-loading">⏳ Fetching emails…</div>';
-    subtitle.textContent = 'Fetching emails…';
+
+    // Show cached emails immediately while we check for new ones
+    if (inboxEmails.length) {
+      renderInbox(inboxEmails);
+      document.getElementById('refresh-btn').style.display = '';
+      subtitle.textContent = '🔄 Checking for new emails…';
+    } else {
+      document.getElementById('email-list').innerHTML = '<div class="inbox-loading">⏳ Fetching emails…</div>';
+      subtitle.textContent = 'Fetching emails…';
+    }
 
     try {
       const myEmail = await getMyEmail();
+      const existingIds = new Set(inboxEmails.map(e => e.id));
 
-      // Unread threads from last 7 days
+      // Fetch latest threads from Gmail
       const data = await gmailGet('users/me/threads?q=in:inbox+newer_than:7d&maxResults=100');
       if (!data.threads?.length) {
-        list.innerHTML = '<div class="inbox-empty">🎉 No threads found!</div>';
-        subtitle.textContent = 'All clear!';
+        if (!inboxEmails.length) {
+          document.getElementById('email-list').innerHTML = '<div class="inbox-empty">🎉 No threads found!</div>';
+          subtitle.textContent = 'All clear!';
+        } else {
+          subtitle.textContent = inboxEmails.length + ' emails · Updated ' +
+            new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        }
         return;
       }
 
-      // Get full thread details
+      // Only process threads we haven't seen yet
+      const newThreadIds = data.threads
+        .map(t => t.id)
+        .filter(id => !existingIds.has(id) && !isDismissed(id) && !isSnoozed(id));
+
+      if (!newThreadIds.length) {
+        subtitle.textContent = inboxEmails.length + ' emails · Updated ' +
+          new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        return;
+      }
+
+      subtitle.textContent = 'Loading ' + newThreadIds.length + ' new email' + (newThreadIds.length > 1 ? 's' : '') + '…';
+
+      // Get full details for new threads only
       const threads = await Promise.all(
-        data.threads.map(t => gmailGet('users/me/threads/' + t.id + '?format=full'))
+        newThreadIds.map(id => gmailGet('users/me/threads/' + id + '?format=full'))
       );
 
-      // Keep only threads where: last msg not from me, not snoozed, not dismissed
+      // Filter: last message not from me
       const needsReply = threads.filter(thread => {
         const last = thread.messages[thread.messages.length - 1];
         const from = getHeader(last, 'From');
-        return !from.toLowerCase().includes(myEmail.toLowerCase())
-          && !isSnoozed(thread.id)
-          && !isDismissed(thread.id);
+        return !from.toLowerCase().includes(myEmail.toLowerCase());
       });
 
       if (!needsReply.length) {
-        list.innerHTML = '<div class="inbox-empty">🎉 You\'ve replied to everything!</div>';
-        subtitle.textContent = 'All caught up!';
+        subtitle.textContent = inboxEmails.length + ' emails · Updated ' +
+          new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
         return;
       }
 
-      // Parse email objects (including full body)
-      const emailData = needsReply.map(thread => {
+      // Parse new email objects
+      const newEmailData = needsReply.map(thread => {
         const last  = thread.messages[thread.messages.length - 1];
         const first = thread.messages[0];
         return {
@@ -943,17 +976,22 @@
         };
       });
 
-      subtitle.textContent = 'Analyzing ' + emailData.length + ' emails with Claude…';
-      const analyzed = await analyzeWithClaude(emailData);
-      inboxEmails = analyzed;
-      renderInbox(analyzed);
+      subtitle.textContent = 'Analyzing ' + newEmailData.length + ' new email' + (newEmailData.length > 1 ? 's' : '') + ' with Claude…';
+      const analyzed = await analyzeWithClaude(newEmailData);
+
+      // Merge: new emails on top, existing below
+      inboxEmails = [...analyzed, ...inboxEmails];
+      saveInboxCache();
+      renderInbox(inboxEmails);
       document.getElementById('refresh-btn').style.display = '';
-      subtitle.textContent = analyzed.length + ' emails need attention · Updated ' +
+      subtitle.textContent = inboxEmails.length + ' emails · Updated ' +
         new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
     } catch (err) {
       console.error('Inbox error:', err);
-      list.innerHTML = '<div class="inbox-empty">⚠️ Error loading inbox — try reconnecting Gmail</div>';
+      if (!inboxEmails.length) {
+        document.getElementById('email-list').innerHTML = '<div class="inbox-empty">⚠️ Error loading inbox — try reconnecting Gmail</div>';
+      }
       subtitle.textContent = 'Error fetching emails';
     }
   }
@@ -1117,6 +1155,7 @@
   function removeEmailCard(emailId) {
     document.getElementById('ecard-' + emailId)?.remove();
     inboxEmails = inboxEmails.filter(e => e.id !== emailId);
+    saveInboxCache();
     updateInboxCount(inboxEmails.length);
     if (!inboxEmails.length) {
       document.getElementById('email-list').innerHTML = '<div class="inbox-empty">🎉 All done! Inbox zero!</div>';
