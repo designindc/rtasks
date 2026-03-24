@@ -32,7 +32,25 @@
       color: var(--text);
     }
 
-    .container { max-width: 700px; margin: 0 auto; }
+    .container { max-width: 1280px; margin: 0 auto; }
+
+    /* ── Split layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      gap: 24px;
+      align-items: start;
+    }
+    .right-col {
+      position: sticky;
+      top: 32px;
+    }
+    .inbox-section { margin-bottom: 0; }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .right-col { position: static; }
+    }
 
     /* ── Header ── */
     .header {
@@ -283,6 +301,7 @@
     .inbox-section {
       background: white; border-radius: var(--radius);
       padding: 20px 22px; margin-bottom: 20px; box-shadow: var(--shadow);
+      max-height: calc(100vh - 64px); overflow-y: auto;
     }
     .inbox-header  { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0; }
     .inbox-title   { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 7px; }
@@ -463,64 +482,75 @@
     </div>
   </div>
 
-  <!-- Words of the Day -->
-  <div class="words-section">
-    <div class="words-header">
-      <div>
-        <div class="words-title">📖 Words of the Day</div>
-        <div class="words-day" id="words-day-label"></div>
-      </div>
-      <div class="words-nav">
-        <button class="nav-btn" id="nav-prev" onclick="changeDay(-1)" title="Previous day">←</button>
-        <button class="nav-btn" id="nav-next" onclick="changeDay(1)"  title="Next day">→</button>
-      </div>
-    </div>
-    <div class="word-cards" id="word-cards"></div>
-  </div>
+  <div class="layout">
 
-  <!-- Daily Stoic -->
-  <div class="stoic-section">
-    <div class="stoic-header">
-      <div>
-        <div class="stoic-title">🏛️ Daily Stoic</div>
-        <div class="stoic-day-label" id="stoic-day-label"></div>
-      </div>
-      <div class="words-nav">
-        <button class="nav-btn" id="stoic-prev" onclick="changeStoicDay(-1)" title="Previous day">←</button>
-        <button class="nav-btn" id="stoic-next" onclick="changeStoicDay(1)"  title="Next day">→</button>
-      </div>
-    </div>
-    <div id="stoic-card"></div>
-  </div>
+    <!-- LEFT COLUMN -->
+    <div class="left-col">
 
-  <!-- Smart Inbox -->
-  <div class="inbox-section">
-    <div class="inbox-header">
-      <div>
-        <div class="inbox-title">📬 Smart Inbox <span class="inbox-count" id="inbox-count" style="display:none"></span></div>
-        <div class="inbox-subtitle" id="inbox-subtitle">Connect Gmail to see emails that need your attention</div>
+      <!-- Words of the Day -->
+      <div class="words-section">
+        <div class="words-header">
+          <div>
+            <div class="words-title">📖 Words of the Day</div>
+            <div class="words-day" id="words-day-label"></div>
+          </div>
+          <div class="words-nav">
+            <button class="nav-btn" id="nav-prev" onclick="changeDay(-1)" title="Previous day">←</button>
+            <button class="nav-btn" id="nav-next" onclick="changeDay(1)"  title="Next day">→</button>
+          </div>
+        </div>
+        <div class="word-cards" id="word-cards"></div>
       </div>
-      <div class="inbox-header-btns">
-        <button class="refresh-btn" id="refresh-btn" onclick="fetchEmails()" title="Refresh" style="display:none">🔄</button>
-        <button class="gmail-btn" id="gmail-btn" onclick="connectGmail()">🔗 Connect Gmail</button>
+
+      <!-- Daily Stoic -->
+      <div class="stoic-section">
+        <div class="stoic-header">
+          <div>
+            <div class="stoic-title">🏛️ Daily Stoic</div>
+            <div class="stoic-day-label" id="stoic-day-label"></div>
+          </div>
+          <div class="words-nav">
+            <button class="nav-btn" id="stoic-prev" onclick="changeStoicDay(-1)" title="Previous day">←</button>
+            <button class="nav-btn" id="stoic-next" onclick="changeStoicDay(1)"  title="Next day">→</button>
+          </div>
+        </div>
+        <div id="stoic-card"></div>
       </div>
-    </div>
-    <div id="inbox-banner" class="inbox-banner" style="display:none" onclick="fetchEmails()"></div>
-    <div class="email-list" id="email-list"></div>
-  </div>
 
-  <div class="filters">
-    <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
-    <button class="filter-btn" onclick="setFilter('pending',this)">Pending</button>
-    <button class="filter-btn" onclick="setFilter('almost',this)">Almost Done</button>
-    <button class="filter-btn" onclick="setFilter('done',this)">Done</button>
-  </div>
+      <div class="filters">
+        <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+        <button class="filter-btn" onclick="setFilter('pending',this)">Pending</button>
+        <button class="filter-btn" onclick="setFilter('almost',this)">Almost Done</button>
+        <button class="filter-btn" onclick="setFilter('done',this)">Done</button>
+      </div>
 
-  <div class="task-list" id="task-list">
-    <div class="loading-state">Loading your tasks…</div>
-  </div>
+      <div class="task-list" id="task-list">
+        <div class="loading-state">Loading your tasks…</div>
+      </div>
 
-  <div class="footer">Click a status badge to cycle · <span>Powered by Supabase</span></div>
+      <div class="footer">Click a status badge to cycle · <span>Powered by Supabase</span></div>
+
+    </div><!-- /left-col -->
+
+    <!-- RIGHT COLUMN -->
+    <div class="right-col">
+      <div class="inbox-section">
+        <div class="inbox-header">
+          <div>
+            <div class="inbox-title">📬 Smart Inbox <span class="inbox-count" id="inbox-count" style="display:none"></span></div>
+            <div class="inbox-subtitle" id="inbox-subtitle">Connect Gmail to see emails that need your attention</div>
+          </div>
+          <div class="inbox-header-btns">
+            <button class="refresh-btn" id="refresh-btn" onclick="fetchEmails()" title="Refresh" style="display:none">🔄</button>
+            <button class="gmail-btn" id="gmail-btn" onclick="connectGmail()">🔗 Connect Gmail</button>
+          </div>
+        </div>
+        <div id="inbox-banner" class="inbox-banner" style="display:none" onclick="fetchEmails()"></div>
+        <div class="email-list" id="email-list"></div>
+      </div>
+    </div><!-- /right-col -->
+
+  </div><!-- /layout -->
 </div>
 
 <!-- Auth Overlay -->
