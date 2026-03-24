@@ -849,7 +849,7 @@
     if (!gmailToken) return;
     try {
       const myEmail = await getMyEmail();
-      const data = await gmailGet('users/me/threads?q=in:inbox+newer_than:7d&maxResults=25');
+      const data = await gmailGet('users/me/threads?q=in:inbox+newer_than:7d&maxResults=100');
       if (!data.threads?.length) return;
       const currentIds = new Set(inboxEmails.map(e => e.id));
       const newCount = data.threads.filter(t => !currentIds.has(t.id) && !isSnoozed(t.id) && !isDismissed(t.id)).length;
@@ -895,7 +895,7 @@
       const myEmail = await getMyEmail();
 
       // Unread threads from last 7 days
-      const data = await gmailGet('users/me/threads?q=in:inbox+newer_than:7d&maxResults=25');
+      const data = await gmailGet('users/me/threads?q=in:inbox+newer_than:7d&maxResults=100');
       if (!data.threads?.length) {
         list.innerHTML = '<div class="inbox-empty">🎉 No threads found!</div>';
         subtitle.textContent = 'All clear!';
