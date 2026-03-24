@@ -1158,7 +1158,7 @@
   function isDismissed(emailId) {
     const dismissed = JSON.parse(localStorage.getItem('dismissed_emails') || '[]');
     // Keep dismissed list for 7 days max to avoid it growing forever
-    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const cutoff = Date.now() - 60 * 24 * 60 * 60 * 1000;
     const active = dismissed.filter(d => d.at > cutoff);
     localStorage.setItem('dismissed_emails', JSON.stringify(active));
     return active.some(d => d.id === emailId);
