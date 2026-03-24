@@ -1384,10 +1384,16 @@
     showLogin();
   }
 
+  const ALLOWED_EMAIL = 'rob@designindc.com'; // ← your email
+
   async function sendMagicLink() {
     const email = document.getElementById('auth-email').value.trim();
     if (!email) {
       showAuthError('Please enter your email address.');
+      return;
+    }
+    if (email.toLowerCase() !== ALLOWED_EMAIL.toLowerCase()) {
+      showAuthError('Access restricted. This app is private.');
       return;
     }
 
