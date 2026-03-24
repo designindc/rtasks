@@ -1404,8 +1404,23 @@
   }
 
   async function initAuth() {
-    // TEMP: bypass auth while rate limit resets
-    showApp();
+    // Check for existing session first
+    const { data: { session } } = await db.auth.getSession();
+    if (session) {
+      showApp();
+      return;
+    }
+
+    // Listen for auth changes (handles magic link redirect)
+    db.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        showApp();
+      } else {
+        showLogin();
+      }
+    });
+
+    showLogin();
   }
 
   const ALLOWED_EMAIL = 'rob@designindc.com'; // ← your email
