@@ -384,6 +384,58 @@
       cursor: pointer; text-align: center; margin-top: 12px; transition: background 0.15s;
     }
     .inbox-banner:hover { background: #d4edda; }
+
+    /* ── Auth Overlay ── */
+    .auth-overlay {
+      position: fixed; inset: 0; z-index: 1000;
+      background: linear-gradient(135deg, #1a3d2b, #2E4057);
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .auth-box {
+      background: white; border-radius: 20px;
+      padding: 40px 36px; max-width: 380px; width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3); text-align: center;
+    }
+    .auth-logo { font-size: 42px; margin-bottom: 12px; }
+    .auth-title { font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+    .auth-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 28px; line-height: 1.5; }
+    .auth-input {
+      width: 100%; padding: 13px 16px;
+      border: 1.5px solid var(--border); border-radius: 12px;
+      font-size: 15px; font-family: inherit; outline: none;
+      color: var(--text); transition: border-color 0.15s;
+      margin-bottom: 12px;
+    }
+    .auth-input:focus { border-color: #3a9d6e; }
+    .auth-btn {
+      width: 100%; padding: 13px;
+      background: linear-gradient(135deg, #1a3d2b, #3a9d6e);
+      color: white; border: none; border-radius: 12px;
+      font-size: 15px; font-weight: 700; cursor: pointer;
+      font-family: inherit; transition: opacity 0.15s;
+    }
+    .auth-btn:hover { opacity: 0.88; }
+    .auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .auth-sent {
+      background: #e8f5e9; border: 1.5px solid #4CAF50; border-radius: 12px;
+      padding: 16px; font-size: 13px; color: #155724; line-height: 1.6;
+      margin-top: 12px; display: none;
+    }
+    .auth-sent.show { display: block; }
+    .auth-error {
+      color: #e74c3c; font-size: 12px; margin-top: 8px; display: none;
+    }
+    .auth-error.show { display: block; }
+
+    /* ── Logout button ── */
+    .logout-btn {
+      background: rgba(255,255,255,0.15); border: 1.5px solid rgba(255,255,255,0.3);
+      color: white; border-radius: 9px; padding: 6px 13px;
+      font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: background 0.15s;
+    }
+    .logout-btn:hover { background: rgba(255,255,255,0.25); }
   </style>
 </head>
 <body>
@@ -399,6 +451,7 @@
       <div class="stat"><div class="stat-num" id="stat-pending">–</div><div class="stat-label">Pending</div></div>
       <div class="stat"><div class="stat-num" id="stat-total">–</div><div class="stat-label">Total</div></div>
     </div>
+    <button class="logout-btn" id="logout-btn" onclick="signOut()" style="display:none" title="Sign out">Sign Out</button>
   </div>
 
   <div class="add-box">
@@ -468,6 +521,23 @@
   </div>
 
   <div class="footer">Click a status badge to cycle · <span>Powered by Supabase</span></div>
+</div>
+
+<!-- Auth Overlay -->
+<div class="auth-overlay" id="auth-overlay" style="display:none">
+  <div class="auth-box">
+    <div class="auth-logo">📋</div>
+    <div class="auth-title">Rob's Tasks</div>
+    <div class="auth-subtitle">Enter your email to receive a magic sign-in link — no password needed.</div>
+    <input class="auth-input" type="email" id="auth-email" placeholder="your@email.com" onkeydown="if(event.key==='Enter') sendMagicLink()"/>
+    <button class="auth-btn" id="auth-send-btn" onclick="sendMagicLink()">✉️ Send Magic Link</button>
+    <div class="auth-sent" id="auth-sent">
+      ✅ <strong>Check your email!</strong><br>
+      We sent a sign-in link to <span id="auth-sent-email"></span>.<br>
+      Click the link to open the app.
+    </div>
+    <div class="auth-error" id="auth-error"></div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -703,7 +773,7 @@
   currentDay = getDayIndex();
   renderWords(currentDay);
 
-  loadTasks();
+  initAuth();
 
   // ════════════════════════════════════════
   // ── Smart Inbox (Gmail + Claude) ──
@@ -1274,6 +1344,90 @@
 
   currentStoicDay = getStoicIndex();
   renderStoic(currentStoicDay);
+
+  // ════════════════════════════════════════
+  // ── Supabase Auth (magic link) ──
+  // ════════════════════════════════════════
+
+  function showApp() {
+    document.getElementById('auth-overlay').style.display = 'none';
+    document.getElementById('logout-btn').style.display = '';
+    loadTasks();
+    initGoogleAuth();
+  }
+
+  function showLogin() {
+    document.getElementById('auth-overlay').style.display = 'flex';
+    document.getElementById('logout-btn').style.display = 'none';
+    // Hide app content while logged out
+    document.getElementById('task-list').innerHTML = '';
+    document.getElementById('email-list').innerHTML = '';
+  }
+
+  async function initAuth() {
+    // Check for existing session first
+    const { data: { session } } = await db.auth.getSession();
+    if (session) {
+      showApp();
+      return;
+    }
+
+    // Listen for auth changes (handles magic link redirect)
+    db.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        showApp();
+      } else {
+        showLogin();
+      }
+    });
+
+    showLogin();
+  }
+
+  async function sendMagicLink() {
+    const email = document.getElementById('auth-email').value.trim();
+    if (!email) {
+      showAuthError('Please enter your email address.');
+      return;
+    }
+
+    const btn = document.getElementById('auth-send-btn');
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    document.getElementById('auth-error').classList.remove('show');
+
+    const { error } = await db.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: 'https://tasklifer.netlify.app'
+      }
+    });
+
+    btn.disabled = false;
+    btn.textContent = '✉️ Send Magic Link';
+
+    if (error) {
+      showAuthError('Could not send link: ' + error.message);
+      return;
+    }
+
+    document.getElementById('auth-sent-email').textContent = email;
+    document.getElementById('auth-sent').classList.add('show');
+    document.getElementById('auth-send-btn').style.display = 'none';
+    document.getElementById('auth-email').style.display = 'none';
+  }
+
+  function showAuthError(msg) {
+    const el = document.getElementById('auth-error');
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+
+  async function signOut() {
+    await db.auth.signOut();
+    showLogin();
+    toast('👋 Signed out');
+  }
 
   initGoogleAuth();
 </script>
