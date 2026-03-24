@@ -728,33 +728,50 @@
       client_id: GOOGLE_CLIENT_ID,
       scope: 'https://www.googleapis.com/auth/gmail.modify',
       callback: handleGmailToken,
+      error_callback: () => {
+        // Silent auto-reconnect failed — show button so user can connect manually
+        document.getElementById('inbox-subtitle').textContent = 'Connect Gmail to see emails that need your attention';
+      }
     });
+
+    // Auto-reconnect silently if user has connected before
+    if (localStorage.getItem('gmail_connected')) {
+      document.getElementById('inbox-subtitle').textContent = '⏳ Connecting to Gmail…';
+      tokenClient.requestAccessToken({ prompt: '' });
+    }
   }
 
   function connectGmail() {
     if (!tokenClient) { toast('Google auth not ready yet, try again'); return; }
-    tokenClient.requestAccessToken({ prompt: '' });
+    tokenClient.requestAccessToken({ prompt: 'consent' });
   }
 
   function handleGmailToken(response) {
-    if (response.error) { toast('Gmail connection failed: ' + response.error); return; }
+    if (response.error) {
+      // If silent reconnect fails, reset so user can try manually
+      if (response.error === 'interaction_required') {
+        document.getElementById('inbox-subtitle').textContent = 'Click Connect Gmail to sign in';
+        return;
+      }
+      toast('Gmail connection failed: ' + response.error);
+      return;
+    }
     gmailToken = response.access_token;
+    localStorage.setItem('gmail_connected', '1');
+
     const btn = document.getElementById('gmail-btn');
     btn.textContent = '✓ Connected';
     btn.classList.add('connected');
 
-    // Token expires in 1 hour — auto-disconnect
+    // When token nears expiry, silently get a new one in the background
     setTimeout(() => {
-      gmailToken = null;
-      btn.textContent = '🔗 Reconnect Gmail';
-      btn.classList.remove('connected');
-      document.getElementById('inbox-subtitle').textContent = 'Session expired — click to reconnect';
-    }, 55 * 60 * 1000);
+      tokenClient.requestAccessToken({ prompt: '' });
+    }, 54 * 60 * 1000);
 
     fetchEmails();
 
     if (refreshTimer) clearInterval(refreshTimer);
-    refreshTimer = setInterval(silentCheck, 3 * 60 * 1000); // Silent check every 3 min
+    refreshTimer = setInterval(silentCheck, 3 * 60 * 1000);
   }
 
   // ── Silent background check — no re-render, just notify ──
