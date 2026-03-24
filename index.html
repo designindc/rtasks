@@ -36,20 +36,54 @@
 
     /* ── Split layout ── */
     .layout {
-      display: grid;
-      grid-template-columns: 1fr 420px;
-      gap: 24px;
+      display: flex;
+      gap: 0;
       align-items: start;
     }
+    .left-col {
+      flex: 1 1 0;
+      min-width: 0;
+      padding-right: 12px;
+    }
+    .col-divider {
+      width: 8px;
+      cursor: col-resize;
+      background: transparent;
+      border-radius: 4px;
+      position: relative;
+      flex-shrink: 0;
+      align-self: stretch;
+      z-index: 10;
+    }
+    .col-divider::after {
+      content: '';
+      position: absolute;
+      left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+      width: 4px; height: 48px;
+      background: #d1d5db;
+      border-radius: 4px;
+      transition: background 0.15s, height 0.15s;
+    }
+    .col-divider:hover::after,
+    .col-divider.dragging::after {
+      background: #3a9d6e;
+      height: 64px;
+    }
     .right-col {
+      flex-shrink: 0;
+      width: 420px;
       position: sticky;
       top: 32px;
+      padding-left: 12px;
     }
     .inbox-section { margin-bottom: 0; }
 
     @media (max-width: 900px) {
-      .layout { grid-template-columns: 1fr; }
-      .right-col { position: static; }
+      .layout { flex-direction: column; }
+      .left-col { padding-right: 0; }
+      .right-col { width: 100% !important; position: static; padding-left: 0; }
+      .col-divider { display: none; }
     }
 
     /* ── Header ── */
@@ -531,6 +565,9 @@
       <div class="footer">Click a status badge to cycle · <span>Powered by Supabase</span></div>
 
     </div><!-- /left-col -->
+
+    <!-- Drag handle -->
+    <div class="col-divider" id="col-divider" title="Drag to resize"></div>
 
     <!-- RIGHT COLUMN -->
     <div class="right-col">
@@ -1503,6 +1540,45 @@
     showLogin();
     toast('👋 Signed out');
   }
+
+  // ── Resizable columns ──
+  (function() {
+    const divider  = document.getElementById('col-divider');
+    const rightCol = document.querySelector('.right-col');
+    const STORAGE_KEY = 'inbox_col_width';
+    const MIN = 280, MAX = 800;
+
+    // Restore saved width
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) rightCol.style.width = saved + 'px';
+
+    let dragging = false, startX = 0, startW = 0;
+
+    divider.addEventListener('mousedown', e => {
+      dragging = true;
+      startX = e.clientX;
+      startW = rightCol.offsetWidth;
+      divider.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      const delta = startX - e.clientX; // drag left = wider inbox
+      const newW = Math.min(MAX, Math.max(MIN, startW + delta));
+      rightCol.style.width = newW + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      divider.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      localStorage.setItem(STORAGE_KEY, rightCol.offsetWidth);
+    });
+  })();
 
 </script>
 </body>
