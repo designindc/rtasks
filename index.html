@@ -333,6 +333,12 @@
       font-family: inherit; transition: opacity 0.15s;
     }
     .reply-btn:hover { opacity: 0.8; }
+    .unsub-btn {
+      background: none; border: 1.5px solid #f5c6cb; border-radius: 8px;
+      padding: 6px 11px; font-size: 12px; font-weight: 500; cursor: pointer;
+      font-family: inherit; color: #c0392b; transition: all 0.12s;
+    }
+    .unsub-btn:hover { background: #fff0f0; border-color: #e74c3c; }
     .open-btn, .snooze-btn, .mark-read-btn {
       background: none; border: 1.5px solid var(--border); border-radius: 8px;
       padding: 6px 11px; font-size: 12px; font-weight: 500; cursor: pointer;
@@ -841,6 +847,7 @@
           date:            getHeader(last, 'Date'),
           snippet:         last.snippet || '',
           body:            extractBody(last),
+          unsubscribeLink: parseUnsubscribe(getHeader(last, 'List-Unsubscribe')),
           threadLength:    thread.messages.length,
           messageIdHeader: getHeader(last, 'Message-ID'),
           references:      getHeader(last, 'References') || getHeader(last, 'Message-ID'),
@@ -965,6 +972,7 @@
           <button class="open-btn"      onclick="openInGmail('${e.threadId}')">↗ Gmail</button>
           <button class="snooze-btn"    onclick="snoozeEmail('${e.id}')">⏰ Tomorrow</button>
           <button class="mark-read-btn" onclick="markReadEmail('${e.id}')">✓ Done</button>
+          ${e.unsubscribeLink ? `<button class="unsub-btn" onclick="unsubscribeEmail('${e.id}')">🚫 Unsubscribe</button>` : ''}
         </div>
         <div class="reply-area" id="reply-area-${e.id}">
           <div class="reply-to-header">Replying to: ${name} <span>&lt;${email}&gt;</span></div>
@@ -1082,6 +1090,55 @@
       headers: { Authorization: 'Bearer ' + gmailToken, 'Content-Type': 'application/json' },
       body: JSON.stringify({ removeLabelIds: ['UNREAD'] }),
     });
+  }
+
+  // ── Unsubscribe ──
+  function parseUnsubscribe(header) {
+    if (!header) return null;
+    // Prefer https link, fall back to mailto
+    const https = header.match(/<(https?:\/\/[^>]+)>/i);
+    if (https) return { type: 'url', value: https[1] };
+    const mailto = header.match(/<mailto:([^>]+)>/i);
+    if (mailto) return { type: 'mailto', value: mailto[1] };
+    return null;
+  }
+
+  async function unsubscribeEmail(emailId) {
+    const email = inboxEmails.find(e => e.id === emailId);
+    if (!email?.unsubscribeLink) return;
+    const { type, value } = email.unsubscribeLink;
+
+    if (!confirm('Unsubscribe from ' + senderName(email.from) + '?')) return;
+
+    if (type === 'url') {
+      window.open(value, '_blank');
+    } else {
+      // Send unsubscribe email via Gmail API
+      try {
+        const myEmail = await getMyEmail();
+        const raw = [
+          'To: ' + value,
+          'From: ' + myEmail,
+          'Subject: Unsubscribe',
+          '',
+          'Unsubscribe',
+        ].join('\r\n');
+        const encoded = btoa(unescape(encodeURIComponent(raw)))
+          .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        await fetch('https://www.googleapis.com/gmail/v1/users/me/messages/send', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + gmailToken, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ raw: encoded }),
+        });
+      } catch (err) {
+        toast('Could not send unsubscribe email');
+        return;
+      }
+    }
+
+    rememberDismissed(emailId);
+    removeEmailCard(emailId);
+    toast('🚫 Unsubscribed!');
   }
 
   function extractBody(message) {
