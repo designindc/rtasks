@@ -1009,8 +1009,21 @@
         newThreadIds.map(id => gmailGet('users/me/threads/' + id + '?format=full'))
       );
 
+      // Filter: skip threads where the last message is from me (sent/forwarded)
+      const needsAttention = threads.filter(thread => {
+        const last = thread.messages[thread.messages.length - 1];
+        const from = getHeader(last, 'From');
+        return !from.toLowerCase().includes(myEmail.toLowerCase());
+      });
+
+      if (!needsAttention.length) {
+        subtitle.textContent = inboxEmails.length + ' emails · Updated ' +
+          new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        return;
+      }
+
       // Parse new email objects
-      const newEmailData = threads.map(thread => {
+      const newEmailData = needsAttention.map(thread => {
         const last  = thread.messages[thread.messages.length - 1];
         const first = thread.messages[0];
         return {
