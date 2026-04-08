@@ -221,6 +221,37 @@
     }
     .delete-btn:hover { color: #e74c3c; }
 
+    /* ── Priority badges ── */
+    .priority-badge {
+      font-size: 10px; font-weight: 700;
+      padding: 2px 8px; border-radius: 20px;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .priority-high   { background: #FDECEA; color: #c0392b; }
+    .priority-medium { background: #FFF8E1; color: #e67e22; }
+    .priority-low    { background: #E8F5E9; color: #27ae60; }
+
+    /* ── Due date ── */
+    .due-date {
+      font-size: 11px; color: var(--muted);
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .due-date.overdue  { color: #e74c3c; font-weight: 700; }
+    .due-date.due-soon { color: #e67e22; font-weight: 600; }
+    .task-item.overdue { border-left: 3px solid #e74c3c; }
+
+    /* ── Add row second line ── */
+    .add-row-2 {
+      display: flex; gap: 8px; margin-top: 8px;
+    }
+    .add-row-2 select, .add-row-2 input[type="date"] {
+      flex: 1; padding: 8px 12px;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      font-size: 13px; outline: none; background: white;
+      font-family: inherit; color: var(--text); cursor: pointer;
+    }
+    .add-row-2 select:focus, .add-row-2 input[type="date"]:focus { border-color: var(--blue); }
+
     /* ── States ── */
     .empty-state { text-align: center; padding: 48px 20px; color: #bbb; font-size: 14px; }
     .loading-state { text-align: center; padding: 40px; color: #aaa; font-size: 14px; }
@@ -514,6 +545,15 @@
       <select id="month-select"></select>
       <button class="btn-add" id="add-btn" onclick="addTask()">+ Add</button>
     </div>
+    <div class="add-row-2">
+      <select id="priority-select">
+        <option value="none">— No Priority</option>
+        <option value="high">🔴 High</option>
+        <option value="medium">🟡 Medium</option>
+        <option value="low">🟢 Low</option>
+      </select>
+      <input type="date" id="due-date-input" title="Due date (optional)"/>
+    </div>
   </div>
 
   <div class="layout">
@@ -556,6 +596,8 @@
         <button class="filter-btn" onclick="setFilter('pending',this)">Pending</button>
         <button class="filter-btn" onclick="setFilter('almost',this)">Almost Done</button>
         <button class="filter-btn" onclick="setFilter('done',this)">Done</button>
+        <button class="filter-btn" onclick="setFilter('overdue',this)">⚠️ Overdue</button>
+        <button class="filter-btn" onclick="setFilter('high',this)">🔴 High Priority</button>
       </div>
 
       <div class="task-list" id="task-list">
@@ -647,16 +689,44 @@
     const input = document.getElementById('new-task-input');
     const name = input.value.trim();
     if (!name) return;
-    const month = document.getElementById('month-select').value;
+    const month    = document.getElementById('month-select').value;
+    const priority = document.getElementById('priority-select').value;
+    const due_date = document.getElementById('due-date-input').value || null;
     const btn = document.getElementById('add-btn');
     btn.disabled = true;
-    const { data, error } = await db.from('tasks').insert([{ name, status: 'pending', month }]).select();
+    const { data, error } = await db.from('tasks').insert([{ name, status: 'pending', month, priority, due_date }]).select();
     btn.disabled = false;
     if (error) { toast('❌ Could not add task'); return; }
     allTasks.push(data[0]);
     input.value = '';
+    document.getElementById('priority-select').value = 'none';
+    document.getElementById('due-date-input').value  = '';
     render();
     toast('✅ Task added!');
+  }
+
+  // ── Format due date ──
+  function formatDueDate(dateStr) {
+    if (!dateStr) return null;
+    const due   = new Date(dateStr + 'T00:00:00');
+    const today = new Date(); today.setHours(0,0,0,0);
+    const diff  = Math.round((due - today) / (1000 * 60 * 60 * 24));
+    if (diff < 0)  return { label: `⚠️ Overdue by ${Math.abs(diff)}d`, cls: 'overdue' };
+    if (diff === 0) return { label: '📅 Due today',    cls: 'due-soon' };
+    if (diff === 1) return { label: '📅 Due tomorrow', cls: 'due-soon' };
+    if (diff <= 7)  return { label: `📅 Due in ${diff}d`, cls: 'due-soon' };
+    return { label: `📅 ${due.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`, cls: '' };
+  }
+
+  // ── Priority badge ──
+  function priorityBadgeHTML(priority) {
+    if (!priority || priority === 'none') return '';
+    const map = {
+      high:   '<span class="priority-badge priority-high">🔴 High</span>',
+      medium: '<span class="priority-badge priority-medium">🟡 Medium</span>',
+      low:    '<span class="priority-badge priority-low">🟢 Low</span>',
+    };
+    return map[priority] || '';
   }
 
   // ── Cycle status ──
@@ -749,9 +819,15 @@
     document.getElementById('stat-pending').textContent = pending;
     document.getElementById('stat-total').textContent   = allTasks.length;
 
+    const today = new Date(); today.setHours(0,0,0,0);
     const filtered = allTasks.filter(t => {
-      if (currentFilter === 'all')    return true;
-      if (currentFilter === 'almost') return t.status === 'almost';
+      if (currentFilter === 'all')     return true;
+      if (currentFilter === 'almost')  return t.status === 'almost';
+      if (currentFilter === 'high')    return t.priority === 'high' && t.status !== 'done';
+      if (currentFilter === 'overdue') {
+        if (!t.due_date || t.status === 'done') return false;
+        return new Date(t.due_date + 'T00:00:00') < today;
+      }
       return t.status === currentFilter;
     });
 
@@ -766,14 +842,18 @@
     for (const [month, items] of Object.entries(groups)) {
       html += `<div class="month-label">${month}</div>`;
       items.forEach((t, i) => {
+        const due = formatDueDate(t.due_date);
+        const isOverdue = due?.cls === 'overdue' && t.status !== 'done';
         html += `
-        <div class="task-item ${t.status === 'done' ? 'done' : ''}">
+        <div class="task-item ${t.status === 'done' ? 'done' : ''} ${isOverdue ? 'overdue' : ''}">
           <span class="task-id">${i+1}</span>
           <div class="chk-wrap">
             <input type="checkbox" id="chk-${t.id}" ${t.status==='done'?'checked':''} onchange="toggleDone(${t.id},this.checked)"/>
             <label for="chk-${t.id}"></label>
           </div>
           <span class="task-name" ondblclick="startEditTask(${t.id})" title="Double-click to edit">${t.name}</span>
+          ${priorityBadgeHTML(t.priority)}
+          ${due ? `<span class="due-date ${due.cls}">${due.label}</span>` : ''}
           <span onclick="cycleStatus(${t.id})">${badgeHTML(t.status)}</span>
           <button class="delete-btn" onclick="deleteTask(${t.id})" title="Delete">×</button>
         </div>`;
