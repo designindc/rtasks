@@ -240,6 +240,25 @@
     .due-date.due-soon { color: #e67e22; font-weight: 600; }
     .task-item.overdue { border-left: 3px solid #e74c3c; }
 
+    /* ── Inline task controls ── */
+    .inline-priority, .inline-date {
+      font-size: 11px; font-family: inherit;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 3px 7px; outline: none; background: white;
+      cursor: pointer; color: var(--text);
+      transition: border-color 0.15s;
+      flex-shrink: 0;
+    }
+    .inline-priority:hover, .inline-date:hover { border-color: #aaa; }
+    .inline-priority:focus, .inline-date:focus  { border-color: var(--blue); }
+
+    .inline-priority-high   { border-color: #e74c3c; color: #c0392b; background: #FDECEA; }
+    .inline-priority-medium { border-color: #e67e22; color: #e67e22; background: #FFF8E1; }
+    .inline-priority-low    { border-color: #27ae60; color: #27ae60; background: #E8F5E9; }
+
+    .inline-date.overdue  { border-color: #e74c3c; color: #e74c3c; background: #FDECEA; }
+    .inline-date.due-soon { border-color: #e67e22; color: #e67e22; background: #FFF8E1; }
+
     /* ── Add row second line ── */
     .add-row-2 {
       display: flex; gap: 8px; margin-top: 8px;
@@ -718,40 +737,36 @@
     return { label: `📅 ${due.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`, cls: '' };
   }
 
-  // ── Cycle priority ──
-  async function cyclePriority(id) {
+  // ── Update priority ──
+  async function updatePriority(id, value) {
     const t = allTasks.find(t => t.id === id);
     if (!t) return;
-    const cycle = { none: 'high', high: 'medium', medium: 'low', low: 'none' };
-    const newPriority = cycle[t.priority || 'none'] || 'none';
-    const { error } = await db.from('tasks').update({ priority: newPriority }).eq('id', id);
+    const { error } = await db.from('tasks').update({ priority: value }).eq('id', id);
     if (error) { toast('❌ Could not update priority'); return; }
-    t.priority = newPriority;
+    t.priority = value;
     render();
   }
 
-  // ── Edit due date inline ──
-  async function editDueDate(id) {
+  // ── Update due date ──
+  async function updateDueDate(id, value) {
     const t = allTasks.find(t => t.id === id);
     if (!t) return;
-    const newDate = prompt('Set due date (YYYY-MM-DD), or leave blank to clear:', t.due_date || '');
-    if (newDate === null) return; // cancelled
-    const due_date = newDate.trim() || null;
+    const due_date = value || null;
     const { error } = await db.from('tasks').update({ due_date }).eq('id', id);
     if (error) { toast('❌ Could not update due date'); return; }
     t.due_date = due_date;
     render();
-    toast('📅 Due date updated');
   }
 
-  // ── Priority badge ──
-  function priorityBadgeHTML(id, priority) {
-    const map = {
-      high:   '<span class="priority-badge priority-high" onclick="cyclePriority('+id+')" title="Click to change priority" style="cursor:pointer">🔴 High</span>',
-      medium: '<span class="priority-badge priority-medium" onclick="cyclePriority('+id+')" title="Click to change priority" style="cursor:pointer">🟡 Medium</span>',
-      low:    '<span class="priority-badge priority-low" onclick="cyclePriority('+id+')" title="Click to change priority" style="cursor:pointer">🟢 Low</span>',
-    };
-    return map[priority] || `<span class="priority-badge" onclick="cyclePriority(${id})" title="Click to set priority" style="cursor:pointer;color:#ccc">＋ Priority</span>`;
+  // ── Priority dropdown ──
+  function prioritySelectHTML(id, priority) {
+    const p = priority || 'none';
+    return `<select class="inline-priority inline-priority-${p}" onchange="updatePriority(${id}, this.value)">
+      <option value="none"  ${p==='none'  ?'selected':''}>— Priority</option>
+      <option value="high"  ${p==='high'  ?'selected':''}>🔴 High</option>
+      <option value="medium"${p==='medium'?'selected':''}>🟡 Medium</option>
+      <option value="low"   ${p==='low'   ?'selected':''}>🟢 Low</option>
+    </select>`;
   }
 
   // ── Cycle status ──
@@ -877,11 +892,8 @@
             <label for="chk-${t.id}"></label>
           </div>
           <span class="task-name" ondblclick="startEditTask(${t.id})" title="Double-click to edit">${t.name}</span>
-          ${priorityBadgeHTML(t.id, t.priority)}
-          ${due
-            ? `<span class="due-date ${due.cls}" onclick="editDueDate(${t.id})" title="Click to change due date" style="cursor:pointer">${due.label}</span>`
-            : `<span class="due-date" onclick="editDueDate(${t.id})" title="Click to set due date" style="cursor:pointer;color:#ccc">＋ Due date</span>`
-          }
+          ${prioritySelectHTML(t.id, t.priority)}
+          <input type="date" class="inline-date ${due?.cls||''}" value="${t.due_date||''}" onchange="updateDueDate(${t.id}, this.value)" title="Due date"/>
           <span onclick="cycleStatus(${t.id})">${badgeHTML(t.status)}</span>
           <button class="delete-btn" onclick="deleteTask(${t.id})" title="Delete">×</button>
         </div>`;
