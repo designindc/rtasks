@@ -241,7 +241,7 @@
     .task-item.overdue { border-left: 3px solid #e74c3c; }
 
     /* ── Inline task controls ── */
-    .inline-priority, .inline-date {
+    .inline-status, .inline-priority, .inline-date {
       font-size: 11px; font-family: inherit;
       border: 1.5px solid var(--border); border-radius: 8px;
       padding: 3px 7px; outline: none; background: white;
@@ -249,8 +249,12 @@
       transition: border-color 0.15s;
       flex-shrink: 0;
     }
-    .inline-priority:hover, .inline-date:hover { border-color: #aaa; }
-    .inline-priority:focus, .inline-date:focus  { border-color: var(--blue); }
+    .inline-status:hover, .inline-priority:hover, .inline-date:hover { border-color: #aaa; }
+    .inline-status:focus, .inline-priority:focus, .inline-date:focus  { border-color: var(--blue); }
+
+    .inline-status-pending { background: #FFF3CD; border-color: #f0c040; color: #856404; }
+    .inline-status-almost  { background: #D1ECF1; border-color: #5bc0de; color: #0c5460; }
+    .inline-status-done    { background: #D4EDDA; border-color: #4CAF50; color: #155724; }
 
     .inline-priority-high   { border-color: #e74c3c; color: #c0392b; background: #FDECEA; }
     .inline-priority-medium { border-color: #e67e22; color: #e67e22; background: #FFF8E1; }
@@ -841,14 +845,22 @@
     render();
   }
 
-  // ── Badge HTML ──
-  function badgeHTML(status) {
-    const map = {
-      pending: '<span class="status-badge badge-pending">⏳ Pending</span>',
-      almost:  '<span class="status-badge badge-almost">🟢 Almost Done</span>',
-      done:    '<span class="status-badge badge-done">✅ Done</span>',
-    };
-    return map[status] || map.pending;
+  // ── Status dropdown ──
+  function statusSelectHTML(id, status) {
+    const s = status || 'pending';
+    return `<select class="inline-status inline-status-${s}" onchange="updateStatus(${id}, this.value)">
+      <option value="pending" ${s==='pending'?'selected':''}>⏳ Pending</option>
+      <option value="almost"  ${s==='almost' ?'selected':''}>🔵 Almost Done</option>
+      <option value="done"    ${s==='done'   ?'selected':''}>✅ Done</option>
+    </select>`;
+  }
+
+  async function updateStatus(id, value) {
+    const { error } = await db.from('tasks').update({ status: value }).eq('id', id);
+    if (error) { toast('❌ Could not update status'); return; }
+    const t = allTasks.find(t => t.id === id);
+    if (t) t.status = value;
+    render();
   }
 
   // ── Render ──
@@ -894,7 +906,7 @@
           <span class="task-name" ondblclick="startEditTask(${t.id})" title="Double-click to edit">${t.name}</span>
           ${prioritySelectHTML(t.id, t.priority)}
           <input type="date" class="inline-date ${due?.cls||''}" value="${t.due_date||''}" onchange="updateDueDate(${t.id}, this.value)" title="Due date"/>
-          <span onclick="cycleStatus(${t.id})">${badgeHTML(t.status)}</span>
+          ${statusSelectHTML(t.id, t.status)}
           <button class="delete-btn" onclick="deleteTask(${t.id})" title="Delete">×</button>
         </div>`;
       });
