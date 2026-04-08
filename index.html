@@ -718,15 +718,40 @@
     return { label: `📅 ${due.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`, cls: '' };
   }
 
+  // ── Cycle priority ──
+  async function cyclePriority(id) {
+    const t = allTasks.find(t => t.id === id);
+    if (!t) return;
+    const cycle = { none: 'high', high: 'medium', medium: 'low', low: 'none' };
+    const newPriority = cycle[t.priority || 'none'] || 'none';
+    const { error } = await db.from('tasks').update({ priority: newPriority }).eq('id', id);
+    if (error) { toast('❌ Could not update priority'); return; }
+    t.priority = newPriority;
+    render();
+  }
+
+  // ── Edit due date inline ──
+  async function editDueDate(id) {
+    const t = allTasks.find(t => t.id === id);
+    if (!t) return;
+    const newDate = prompt('Set due date (YYYY-MM-DD), or leave blank to clear:', t.due_date || '');
+    if (newDate === null) return; // cancelled
+    const due_date = newDate.trim() || null;
+    const { error } = await db.from('tasks').update({ due_date }).eq('id', id);
+    if (error) { toast('❌ Could not update due date'); return; }
+    t.due_date = due_date;
+    render();
+    toast('📅 Due date updated');
+  }
+
   // ── Priority badge ──
-  function priorityBadgeHTML(priority) {
-    if (!priority || priority === 'none') return '';
+  function priorityBadgeHTML(id, priority) {
     const map = {
-      high:   '<span class="priority-badge priority-high">🔴 High</span>',
-      medium: '<span class="priority-badge priority-medium">🟡 Medium</span>',
-      low:    '<span class="priority-badge priority-low">🟢 Low</span>',
+      high:   '<span class="priority-badge priority-high" onclick="cyclePriority('+id+')" title="Click to change priority" style="cursor:pointer">🔴 High</span>',
+      medium: '<span class="priority-badge priority-medium" onclick="cyclePriority('+id+')" title="Click to change priority" style="cursor:pointer">🟡 Medium</span>',
+      low:    '<span class="priority-badge priority-low" onclick="cyclePriority('+id+')" title="Click to change priority" style="cursor:pointer">🟢 Low</span>',
     };
-    return map[priority] || '';
+    return map[priority] || `<span class="priority-badge" onclick="cyclePriority(${id})" title="Click to set priority" style="cursor:pointer;color:#ccc">＋ Priority</span>`;
   }
 
   // ── Cycle status ──
@@ -852,8 +877,11 @@
             <label for="chk-${t.id}"></label>
           </div>
           <span class="task-name" ondblclick="startEditTask(${t.id})" title="Double-click to edit">${t.name}</span>
-          ${priorityBadgeHTML(t.priority)}
-          ${due ? `<span class="due-date ${due.cls}">${due.label}</span>` : ''}
+          ${priorityBadgeHTML(t.id, t.priority)}
+          ${due
+            ? `<span class="due-date ${due.cls}" onclick="editDueDate(${t.id})" title="Click to change due date" style="cursor:pointer">${due.label}</span>`
+            : `<span class="due-date" onclick="editDueDate(${t.id})" title="Click to set due date" style="cursor:pointer;color:#ccc">＋ Due date</span>`
+          }
           <span onclick="cycleStatus(${t.id})">${badgeHTML(t.status)}</span>
           <button class="delete-btn" onclick="deleteTask(${t.id})" title="Delete">×</button>
         </div>`;
